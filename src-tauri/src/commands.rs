@@ -1,10 +1,14 @@
+use std::path::PathBuf;
+
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tauri::{AppHandle, State};
+use serde_json::{Value, json};
+use tauri::{AppHandle, Emitter, State};
 
+use crate::claude::{self, PlanRequest};
 use crate::db::{DbState, ensure_exists};
 use crate::error::{AppError, AppResult};
+use crate::fs_ops;
 use crate::paths::{self, AppPaths};
 use crate::secrets;
 
@@ -301,6 +305,398 @@ pub fn set_api_key(provider: String, value: String) -> AppResult<()> {
 #[tauri::command]
 pub fn clear_api_key(provider: String) -> AppResult<()> {
     secrets::clear(&provider)
+}
+
+/* ------------------------------------------------------------------ */
+/*  Filesystem / project scaffolding                                   */
+/* ------------------------------------------------------------------ */
+
+#[tauri::command]
+pub fn ensure_project_dir(app: AppHandle, project_id: String) -> AppResult<String> {
+    let dir = fs_ops::ensure_project_dir(&app, &project_id)?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn copy_srt_into_project(
+    app: AppHandle,
+    project_id: String,
+    source_path: String,
+) -> AppResult<String> {
+    let dest = fs_ops::copy_srt_into_project(&app, &project_id, &PathBuf::from(&source_path))?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn save_theme_reference_image(
+    app: AppHandle,
+    theme_id: String,
+    source_path: String,
+) -> AppResult<String> {
+    let p = fs_ops::save_theme_reference(&app, &theme_id, &PathBuf::from(&source_path))?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn delete_theme_reference_image(path: String) -> AppResult<()> {
+    fs_ops::delete_theme_reference(&PathBuf::from(path))
+}
+
+/* ------------------------------------------------------------------ */
+/*  API usage                                                          */
+/* ------------------------------------------------------------------ */
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageSummary {
+    pub total_cost_usd: f64,
+    pub anthropic_cost_usd: f64,
+    pub gemini_cost_usd: f64,
+    pub since: i64,
+}
+
+#[tauri::command]
+pub fn get_usage_since(db: State<'_, DbState>, since_ms: i64) -> AppResult<UsageSummary> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT provider, COALESCE(SUM(cost_usd), 0)
+           FROM api_usage
+          WHERE created_at >= ?1
+       GROUP BY provider",
+    )?;
+    let rows = stmt.query_map(params![since_ms], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+    })?;
+
+    let mut summary = UsageSummary {
+        total_cost_usd: 0.0,
+        anthropic_cost_usd: 0.0,
+        gemini_cost_usd: 0.0,
+        since: since_ms,
+    };
+    for row in rows {
+        let (provider, cost) = row?;
+        match provider.as_str() {
+            "anthropic" => summary.anthropic_cost_usd = cost,
+            "gemini" => summary.gemini_cost_usd = cost,
+            _ => {}
+        }
+        summary.total_cost_usd += cost;
+    }
+    Ok(summary)
+}
+
+fn log_usage(
+    conn: &rusqlite::Connection,
+    project_id: Option<&str>,
+    provider: &str,
+    model: &str,
+    input_tokens: u32,
+    output_tokens: u32,
+    cost_usd: f64,
+) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO api_usage (project_id, provider, model, input_tokens, output_tokens, cost_usd, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![project_id, provider, model, input_tokens as i64, output_tokens as i64, cost_usd, now_ms()],
+    )?;
+    Ok(())
+}
+
+/* ------------------------------------------------------------------ */
+/*  Plan generation                                                    */
+/* ------------------------------------------------------------------ */
+
+const OPUS_INPUT_USD_PER_MTOK: f64 = 15.0;
+const OPUS_OUTPUT_USD_PER_MTOK: f64 = 75.0;
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanProgress {
+    pub stage: String,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratePlanResult {
+    pub item_count: usize,
+    pub dropped_count: usize,
+    pub cost_usd: f64,
+    pub project: Project,
+}
+
+#[tauri::command]
+pub async fn generate_plan(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    project_id: String,
+    planning_prompt: String,
+) -> AppResult<GeneratePlanResult> {
+    emit_progress(&app, "loading", "Loading project context…");
+
+    let (project, theme_value) = {
+        let conn = db.conn.lock().unwrap();
+        let proj = load_project_row(&conn, &project_id)?;
+        let theme_str: String = conn
+            .query_row(
+                "SELECT data FROM themes WHERE id = ?1",
+                params![proj.client_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    AppError::NotFound(format!("theme:{}", proj.client_id))
+                }
+                other => other.into(),
+            })?;
+        let theme_value: Value = serde_json::from_str(&theme_str)?;
+        (proj.into_project(Vec::new())?, theme_value)
+    };
+
+    let srt_content = fs_ops::read_srt(&app, &project_id)?;
+
+    let api_key = secrets::get("anthropic")?
+        .ok_or_else(|| AppError::Other("Anthropic API key not set".into()))?;
+
+    let user_prompt = build_user_prompt(&project, &theme_value, &srt_content);
+    let tool_schema = plan_tool_schema();
+
+    emit_progress(&app, "calling", "Calling Claude Opus…");
+
+    let mut last_err: Option<AppError> = None;
+    let mut response = None;
+    for attempt in 0..2 {
+        match claude::request_plan(
+            &api_key,
+            &PlanRequest {
+                system_prompt: &planning_prompt,
+                user_prompt: &user_prompt,
+                tool_schema: tool_schema.clone(),
+            },
+        )
+        .await
+        {
+            Ok(r) => {
+                response = Some(r);
+                break;
+            }
+            Err(err) => {
+                last_err = Some(err);
+                if attempt == 0 {
+                    emit_progress(&app, "calling", "Retrying after transient error…");
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    let plan = response.ok_or_else(|| {
+        last_err.unwrap_or_else(|| AppError::Other("Claude call failed".into()))
+    })?;
+
+    emit_progress(&app, "parsing", "Validating plan items…");
+    let (valid_items, dropped) = filter_valid_items(&plan.items, project.video_duration);
+
+    let cost = (plan.usage.input_tokens as f64) / 1_000_000.0 * OPUS_INPUT_USD_PER_MTOK
+        + (plan.usage.output_tokens as f64) / 1_000_000.0 * OPUS_OUTPUT_USD_PER_MTOK;
+
+    emit_progress(&app, "persisting", "Saving plan to database…");
+    {
+        let conn = db.conn.lock().unwrap();
+        log_usage(
+            &conn,
+            Some(&project_id),
+            "anthropic",
+            &plan.model,
+            plan.usage.input_tokens,
+            plan.usage.output_tokens,
+            cost,
+        )?;
+        conn.execute(
+            "DELETE FROM plan_items WHERE project_id = ?1",
+            params![project_id],
+        )?;
+        write_plan_items(&conn, &project_id, &valid_items)?;
+        conn.execute(
+            "UPDATE projects SET status = 'review', updated_at = ?2 WHERE id = ?1",
+            params![project_id, now_ms()],
+        )?;
+    }
+
+    emit_progress(&app, "done", "Done");
+
+    let updated = get_project(db, project_id)?;
+    Ok(GeneratePlanResult {
+        item_count: valid_items.len(),
+        dropped_count: dropped,
+        cost_usd: cost,
+        project: updated,
+    })
+}
+
+fn emit_progress(app: &AppHandle, stage: &str, message: &str) {
+    let _ = app.emit(
+        "plan:progress",
+        PlanProgress {
+            stage: stage.to_string(),
+            message: message.to_string(),
+        },
+    );
+}
+
+fn build_user_prompt(project: &Project, theme: &Value, srt: &str) -> String {
+    let settings_str = serde_json::to_string_pretty(&project.settings).unwrap_or_default();
+    let theme_str = serde_json::to_string_pretty(theme).unwrap_or_default();
+    format!(
+        "Project: {name}\nFormat: {format} @ {fps}fps\nDuration: {dur:.3}s\n\n\
+         Settings:\n{settings}\n\n\
+         Theme:\n{theme}\n\n\
+         SRT transcript:\n{srt}\n\n\
+         Produce the plan via the submit_motion_plan tool.",
+        name = project.name,
+        format = project.video_format,
+        fps = project.fps,
+        dur = project.video_duration,
+        settings = settings_str,
+        theme = theme_str,
+        srt = srt.trim(),
+    )
+}
+
+fn plan_tool_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["id", "timestamp", "duration", "tier", "brief", "srtContext"],
+                    "properties": {
+                        "id": { "type": "string" },
+                        "timestamp": { "type": "number", "minimum": 0 },
+                        "duration": { "type": "number", "minimum": 0.1, "maximum": 10.0 },
+                        "tier": { "type": "integer", "enum": [1, 2, 3] },
+                        "componentType": {
+                            "type": "string",
+                            "enum": [
+                                "IconPopIn", "HighlightCircle", "SlideInIllustration",
+                                "TextCallout", "NumberEmphasis", "ProgressBar",
+                                "LowerThird", "ArrowPointer"
+                            ]
+                        },
+                        "brief": { "type": "string", "minLength": 1 },
+                        "srtContext": { "type": "string" }
+                    }
+                }
+            }
+        },
+        "required": ["items"]
+    })
+}
+
+fn filter_valid_items(raw: &[Value], video_duration: f64) -> (Vec<Value>, usize) {
+    let mut out = Vec::new();
+    let mut dropped = 0usize;
+    for (idx, item) in raw.iter().enumerate() {
+        let Some(mut obj) = item.as_object().cloned() else {
+            dropped += 1;
+            continue;
+        };
+
+        let timestamp = obj.get("timestamp").and_then(|v| v.as_f64());
+        let duration = obj.get("duration").and_then(|v| v.as_f64());
+        let tier = obj.get("tier").and_then(|v| v.as_i64());
+
+        let (Some(ts), Some(dur), Some(tier_v)) = (timestamp, duration, tier) else {
+            dropped += 1;
+            continue;
+        };
+        if !(0.0..=video_duration).contains(&ts) {
+            dropped += 1;
+            continue;
+        }
+        if !(0.1..=10.0).contains(&dur) {
+            dropped += 1;
+            continue;
+        }
+        if !(1..=3).contains(&tier_v) {
+            dropped += 1;
+            continue;
+        }
+        if tier_v != 1 {
+            obj.remove("componentType");
+        }
+        if !obj.contains_key("id") {
+            obj.insert(
+                "id".into(),
+                Value::String(format!("item-{}-{}", idx, now_ms())),
+            );
+        }
+        // Round timestamps to 3 decimals.
+        obj.insert(
+            "timestamp".into(),
+            json!((ts * 1000.0).round() / 1000.0),
+        );
+        obj.insert("duration".into(), json!((dur * 1000.0).round() / 1000.0));
+        obj.insert("status".into(), Value::String("proposed".into()));
+        obj.entry("baseState".to_string()).or_insert_with(default_base_state);
+        obj.entry("animation".to_string()).or_insert_with(default_animation);
+        out.push(Value::Object(obj));
+    }
+    out.sort_by(|a, b| {
+        let ta = a.get("timestamp").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let tb = b.get("timestamp").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    (out, dropped)
+}
+
+fn default_base_state() -> Value {
+    json!({
+        "position": { "x": 540.0, "y": 960.0 },
+        "rotation": 0.0,
+        "scale": { "x": 1.0, "y": 1.0 },
+        "opacity": 1.0,
+        "anchorPoint": { "x": 0.5, "y": 0.5 }
+    })
+}
+
+fn default_animation() -> Value {
+    json!({
+        "enter": { "motion": null, "mask": null },
+        "idle":  { "motion": [],   "mask": null },
+        "exit":  { "motion": null, "mask": null }
+    })
+}
+
+fn load_project_row(conn: &rusqlite::Connection, project_id: &str) -> AppResult<ProjectRow> {
+    conn.query_row(
+        "SELECT id, name, client_id, srt_path, video_path, video_format, video_duration,
+                fps, settings, status, created_at, updated_at
+           FROM projects WHERE id = ?1",
+        params![project_id],
+        |row| {
+            Ok(ProjectRow {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                client_id: row.get(2)?,
+                srt_path: row.get(3)?,
+                video_path: row.get(4)?,
+                video_format: row.get(5)?,
+                video_duration: row.get(6)?,
+                fps: row.get(7)?,
+                settings: row.get::<_, String>(8)?,
+                status: row.get(9)?,
+                created_at: row.get(10)?,
+                updated_at: row.get(11)?,
+            })
+        },
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(format!("project:{project_id}")),
+        other => other.into(),
+    })
 }
 
 /* ------------------------------------------------------------------ */

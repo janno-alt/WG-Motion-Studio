@@ -1,8 +1,10 @@
+mod claude;
+mod commands;
 mod db;
 mod error;
+mod fs_ops;
 mod paths;
 mod secrets;
-mod commands;
 
 use tauri::Manager;
 
@@ -40,6 +42,12 @@ pub fn run() {
             commands::has_api_key,
             commands::set_api_key,
             commands::clear_api_key,
+            commands::ensure_project_dir,
+            commands::copy_srt_into_project,
+            commands::save_theme_reference_image,
+            commands::delete_theme_reference_image,
+            commands::get_usage_since,
+            commands::generate_plan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
