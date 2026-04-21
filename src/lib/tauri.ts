@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import type { Project, Theme, Preset } from "@/types";
 
@@ -12,6 +13,25 @@ export interface AppPaths {
   dbPath: string;
   projectsDir: string;
   configDir: string;
+}
+
+export interface UsageSummary {
+  totalCostUsd: number;
+  anthropicCostUsd: number;
+  geminiCostUsd: number;
+  since: number;
+}
+
+export interface PlanProgress {
+  stage: "loading" | "calling" | "parsing" | "persisting" | "done";
+  message: string;
+}
+
+export interface GeneratePlanResult {
+  itemCount: number;
+  droppedCount: number;
+  costUsd: number;
+  project: Project;
 }
 
 export const commands = {
@@ -36,10 +56,35 @@ export const commands = {
   savePreset: (preset: Preset) => invoke<Preset>("save_preset", { preset }),
   deletePreset: (presetId: string) => invoke<void>("delete_preset", { presetId }),
 
-  // Secrets / API keys — the frontend can only check presence and set/clear.
-  // Reading the actual key is intentionally NOT exposed — it stays in Rust.
+  // Secrets / API keys — presence-check only, keys stay in Rust.
   hasApiKey: (provider: Provider) => invoke<boolean>("has_api_key", { provider }),
   setApiKey: (provider: Provider, value: string) =>
     invoke<void>("set_api_key", { provider, value }),
   clearApiKey: (provider: Provider) => invoke<void>("clear_api_key", { provider }),
+
+  // Filesystem
+  ensureProjectDir: (projectId: string) =>
+    invoke<string>("ensure_project_dir", { projectId }),
+  copySrtIntoProject: (projectId: string, sourcePath: string) =>
+    invoke<string>("copy_srt_into_project", { projectId, sourcePath }),
+  saveThemeReferenceImage: (themeId: string, sourcePath: string) =>
+    invoke<string>("save_theme_reference_image", { themeId, sourcePath }),
+  deleteThemeReferenceImage: (path: string) =>
+    invoke<void>("delete_theme_reference_image", { path }),
+
+  // Usage
+  getUsageSince: (sinceMs: number) =>
+    invoke<UsageSummary>("get_usage_since", { sinceMs }),
+
+  // Plan generation
+  generatePlan: (projectId: string, planningPrompt: string) =>
+    invoke<GeneratePlanResult>("generate_plan", { projectId, planningPrompt }),
 } as const;
+
+/** Subscribes to plan progress events. Returns an unlisten function. */
+export async function onPlanProgress(
+  handler: (p: PlanProgress) => void,
+): Promise<() => void> {
+  const un = await listen<PlanProgress>("plan:progress", (e) => handler(e.payload));
+  return un;
+}

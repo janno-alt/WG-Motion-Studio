@@ -3,8 +3,13 @@ import { persist } from "zustand/middleware";
 
 interface AppStoreState {
   sidebarCollapsed: boolean;
+  monthlyBudgetUsd: number;
+  projectListLayout: "grid" | "list";
+
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setMonthlyBudget: (usd: number) => void;
+  setProjectListLayout: (layout: "grid" | "list") => void;
 }
 
 /**
@@ -15,11 +20,14 @@ export const useAppStore = create<AppStoreState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
+      monthlyBudgetUsd: 50,
+      projectListLayout: "grid",
+
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+      setMonthlyBudget: (monthlyBudgetUsd) => set({ monthlyBudgetUsd }),
+      setProjectListLayout: (projectListLayout) => set({ projectListLayout }),
     }),
-    {
-      name: "wg-motion-studio.ui",
-    },
+    { name: "wg-motion-studio.ui" },
   ),
 );

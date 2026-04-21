@@ -1,26 +1,40 @@
+import { useEffect } from "react";
+
+import { useAppStore } from "@/state/appStore";
+import { useUsageStore } from "@/state/usageStore";
+import { formatUsd } from "@/lib/pricing";
+
 interface Props {
   collapsed: boolean;
 }
 
 /**
- * Sidebar footer widget showing month-to-date API spend.
- * Dummy values in phase 1 — wired to api_usage table in phase 2.
+ * Sidebar footer widget showing month-to-date API spend vs. configured budget.
+ * Queries `api_usage` via the Rust `get_usage_since` command.
  */
 export function ApiUsageWidget({ collapsed }: Props) {
-  // Phase 1 dummy data; replaced by real telemetry in phase 2.
-  const spendUsd = 0;
-  const budgetUsd = 50;
-  const percent = Math.min(100, (spendUsd / budgetUsd) * 100);
+  const budgetUsd = useAppStore((s) => s.monthlyBudgetUsd);
+  const { summary, refresh } = useUsageStore();
+
+  useEffect(() => {
+    void refresh();
+    const t = setInterval(refresh, 60_000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
+  const spendUsd = summary?.totalCostUsd ?? 0;
+  const percent = budgetUsd > 0 ? Math.min(100, (spendUsd / budgetUsd) * 100) : 0;
+  const over = spendUsd > budgetUsd && budgetUsd > 0;
 
   if (collapsed) {
     return (
       <div className="flex h-12 items-center justify-center px-2">
         <div
-          className="h-8 w-1 rounded-full bg-surface-3"
-          title={`$${spendUsd.toFixed(2)} / $${budgetUsd} this month`}
+          className="flex h-8 w-1 flex-col-reverse overflow-hidden rounded-full bg-surface-3"
+          title={`${formatUsd(spendUsd)} / ${formatUsd(budgetUsd)} this month`}
         >
           <div
-            className="w-full rounded-full bg-accent-primary"
+            className={over ? "w-full bg-danger" : "w-full bg-accent-primary"}
             style={{ height: `${percent}%` }}
           />
         </div>
@@ -33,15 +47,24 @@ export function ApiUsageWidget({ collapsed }: Props) {
       <div className="mb-1 flex items-center justify-between text-2xs">
         <span className="text-text-muted">API usage · MTD</span>
         <span className="font-mono text-text-secondary">
-          ${spendUsd.toFixed(2)} / ${budgetUsd}
+          {formatUsd(spendUsd)} / {formatUsd(budgetUsd)}
         </span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-surface-3">
         <div
-          className="h-full bg-accent-primary transition-[width] duration-[200ms] ease-out-expo"
+          className={[
+            "h-full transition-[width] duration-[200ms] ease-out-expo",
+            over ? "bg-danger" : "bg-accent-primary",
+          ].join(" ")}
           style={{ width: `${percent}%` }}
         />
       </div>
+      {summary ? (
+        <div className="mt-1.5 flex justify-between text-2xs text-text-muted">
+          <span>Claude {formatUsd(summary.anthropicCostUsd)}</span>
+          <span>Gemini {formatUsd(summary.geminiCostUsd)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
