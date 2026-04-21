@@ -287,9 +287,10 @@ pub fn delete_preset(db: State<'_, DbState>, preset_id: String) -> AppResult<()>
 /*  Secrets                                                            */
 /* ------------------------------------------------------------------ */
 
+/// Intentionally only exposes presence, never the value. The key stays in Rust.
 #[tauri::command]
-pub fn get_api_key(provider: String) -> AppResult<Option<String>> {
-    secrets::get(&provider)
+pub fn has_api_key(provider: String) -> AppResult<bool> {
+    Ok(secrets::get(&provider)?.is_some())
 }
 
 #[tauri::command]

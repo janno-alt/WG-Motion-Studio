@@ -1,0 +1,65 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: theme("colors.surface.0");
+    color: theme("colors.text.primary");
+    font-family: theme("fontFamily.sans");
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  .selectable {
+    user-select: text;
+  }
+
+  /* Thin dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.surface.3") transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: theme("colors.surface.3");
+    border-radius: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: theme("colors.border.DEFAULT");
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

@@ -17,8 +17,9 @@ pub fn run() {
             if let Some(parent) = db_path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let conn = db::open(&db_path)?;
-            db::migrate(&conn)?;
+            let mut conn = db::open_or_recover(&db_path)?;
+            db::migrations::run(&mut conn)?;
+            db::seed::ensure_default_themes(&conn)?;
             app.manage(db::DbState::new(conn));
             Ok(())
         })
@@ -36,7 +37,7 @@ pub fn run() {
             commands::list_presets,
             commands::save_preset,
             commands::delete_preset,
-            commands::get_api_key,
+            commands::has_api_key,
             commands::set_api_key,
             commands::clear_api_key,
         ])

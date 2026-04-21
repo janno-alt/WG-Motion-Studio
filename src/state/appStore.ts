@@ -1,20 +1,25 @@
 import { create } from "zustand";
-
-import type { Theme } from "@/types";
+import { persist } from "zustand/middleware";
 
 interface AppStoreState {
-  themes: Theme[];
-  activeThemeId: string | null;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
 }
 
-interface AppStoreActions {
-  setThemes: (themes: Theme[]) => void;
-  setActiveThemeId: (id: string | null) => void;
-}
-
-export const useAppStore = create<AppStoreState & AppStoreActions>((set) => ({
-  themes: [],
-  activeThemeId: null,
-  setThemes: (themes) => set({ themes }),
-  setActiveThemeId: (id) => set({ activeThemeId: id }),
-}));
+/**
+ * UI-only state — persisted to localStorage.
+ * Domain data lives in SQLite and is never persisted here.
+ */
+export const useAppStore = create<AppStoreState>()(
+  persist(
+    (set) => ({
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+    }),
+    {
+      name: "wg-motion-studio.ui",
+    },
+  ),
+);

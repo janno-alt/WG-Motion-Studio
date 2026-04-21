@@ -1,11 +1,11 @@
 import { ScreenHeader } from "@/components/ScreenHeader";
 
-export function EditorScreen() {
+export function NewProjectScreen() {
   return (
     <div className="flex h-full flex-col">
-      <ScreenHeader title="Editor" />
+      <ScreenHeader title="New project" />
       <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
-        Editor — phase 4.
+        Project setup — phase 2.
       </div>
     </div>
   );

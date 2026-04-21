@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 
 import { router } from "@/app/router";
-import "@/styles/global.css";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import "@/app/globals.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,9 +23,11 @@ if (!rootEl) throw new Error("#root not found");
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <Toaster position="bottom-right" theme="dark" richColors={false} />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        <Toaster position="bottom-right" theme="dark" richColors={false} />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

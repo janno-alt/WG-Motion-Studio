@@ -1,11 +1,20 @@
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { ApiKeysSection } from "./sections/ApiKeysSection";
+import { UpdateCheckSection } from "./sections/UpdateCheckSection";
+import { ExportPathsSection } from "./sections/ExportPathsSection";
+import { RenderQualitySection } from "./sections/RenderQualitySection";
+
 export function SettingsScreen() {
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 items-center border-b border-border-subtle px-4">
-        <h1 className="text-sm font-medium">Settings</h1>
-      </header>
-      <div className="flex flex-1 items-center justify-center text-sm text-content-tertiary">
-        Settings — phase 1.
+      <ScreenHeader title="Settings" />
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-2xl space-y-6 p-6">
+          <ApiKeysSection />
+          <RenderQualitySection />
+          <ExportPathsSection />
+          <UpdateCheckSection />
+        </div>
       </div>
     </div>
   );
