@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { Field, Input, Textarea } from "@/components/Input";
 import { commands } from "@/lib/tauri";
+import { groupPresetsByCategory, usePresetsStore } from "@/state/presetsStore";
 import type {
   EntryStyle,
   IconApproach,
@@ -316,11 +317,12 @@ export function ThemeEditor({ theme, onSave, onDelete }: Props) {
             </div>
           </Section>
 
-          {/* Preferred presets (phase 3) */}
+          {/* Preferred presets */}
           <Section title="Preferred presets">
-            <div className="text-xs text-text-muted">
-              Presets will be selectable once phase 3 ships the preset engine.
-            </div>
+            <PreferredPresetsPicker
+              selected={local.preferredPresets}
+              onChange={(preferredPresets) => update({ preferredPresets })}
+            />
           </Section>
 
           {/* Style notes */}
@@ -426,6 +428,67 @@ function ColorField({
         </Popover.Portal>
       </Popover.Root>
     </Field>
+  );
+}
+
+function PreferredPresetsPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const presets = usePresetsStore((s) => s.presets);
+  const grouped = groupPresetsByCategory(presets);
+  const selectedSet = new Set(selected);
+
+  const toggle = (id: string) => {
+    const next = new Set(selectedSet);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(Array.from(next));
+  };
+
+  if (presets.length === 0) {
+    return <div className="text-xs text-text-muted">Presets are still loading…</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {(["enter", "idle", "exit", "mask"] as const).map((cat) => (
+        <div key={cat}>
+          <div className="mb-1.5 text-2xs uppercase tracking-wide text-text-muted">
+            {cat}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {grouped[cat].map((p) => {
+              const on = selectedSet.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  className={[
+                    "rounded-default border px-2 py-1 text-xs transition-colors",
+                    on
+                      ? "border-accent-primary bg-accent-primary/10 text-text-primary"
+                      : "border-border-subtle text-text-secondary hover:bg-surface-2",
+                  ].join(" ")}
+                  title={p.tags.join(" · ")}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="text-2xs text-text-muted">
+        {selected.length === 0
+          ? "None selected — Claude will pick from the full library."
+          : `${selected.length} preset${selected.length === 1 ? "" : "s"} preferred.`}
+      </div>
+    </div>
   );
 }
 

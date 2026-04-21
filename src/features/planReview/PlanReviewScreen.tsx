@@ -9,11 +9,13 @@ import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Timeline } from "./components/Timeline";
+import { PlanPlayer } from "./components/PlanPlayer";
 import { commands } from "@/lib/tauri";
 import { PLANNING_PROMPT } from "@/lib/planningPrompt";
 import { parseSrt, type SrtBlock } from "@/lib/srt";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useThemesStore } from "@/state/themesStore";
+import { usePresetsStore } from "@/state/presetsStore";
 import type { Project, Theme } from "@/types";
 
 export function PlanReviewScreen() {
@@ -21,6 +23,7 @@ export function PlanReviewScreen() {
   const navigate = useNavigate();
   const { projects, upsert, load } = useProjectsStore();
   const { themes, load: loadThemes } = useThemesStore();
+  const presets = usePresetsStore((s) => s.presets);
 
   const [project, setProject] = useState<Project | null>(null);
   const [srtBlocks, setSrtBlocks] = useState<SrtBlock[]>([]);
@@ -132,15 +135,25 @@ export function PlanReviewScreen() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <Timeline
-          duration={project.videoDuration}
-          planItems={project.planItems}
-          srtBlocks={srtBlocks}
-          themePrimary={theme?.colors.primary ?? "#C8FF00"}
-          onItemClick={(item) =>
-            navigate(`/projects/${project.id}/editor/${item.id}`)
-          }
-        />
+        <div className="flex flex-1 flex-col">
+          <Timeline
+            duration={project.videoDuration}
+            planItems={project.planItems}
+            srtBlocks={srtBlocks}
+            themePrimary={theme?.colors.primary ?? "#C8FF00"}
+            onItemClick={(item) =>
+              navigate(`/projects/${project.id}/editor/${item.id}`)
+            }
+          />
+        </div>
+        {theme ? (
+          <aside className="flex w-[380px] shrink-0 flex-col border-l border-border-subtle bg-surface-1">
+            <div className="border-b border-border-subtle px-3 py-2 text-2xs uppercase tracking-wide text-text-muted">
+              Preview
+            </div>
+            <PlanPlayer project={project} theme={theme} presets={presets} />
+          </aside>
+        ) : null}
       </div>
 
       <ConfirmDialog

@@ -342,6 +342,11 @@ pub fn delete_theme_reference_image(path: String) -> AppResult<()> {
     fs_ops::delete_theme_reference(&PathBuf::from(path))
 }
 
+#[tauri::command]
+pub fn read_file_as_string(path: String) -> AppResult<String> {
+    fs_ops::read_string(&PathBuf::from(path))
+}
+
 /* ------------------------------------------------------------------ */
 /*  API usage                                                          */
 /* ------------------------------------------------------------------ */
@@ -435,7 +440,7 @@ pub async fn generate_plan(
 ) -> AppResult<GeneratePlanResult> {
     emit_progress(&app, "loading", "Loading project context…");
 
-    let (project, theme_value) = {
+    let (project, theme_value, presets) = {
         let conn = db.conn.lock().unwrap();
         let proj = load_project_row(&conn, &project_id)?;
         let theme_str: String = conn
@@ -451,7 +456,8 @@ pub async fn generate_plan(
                 other => other.into(),
             })?;
         let theme_value: Value = serde_json::from_str(&theme_str)?;
-        (proj.into_project(Vec::new())?, theme_value)
+        let presets = load_all_presets(&conn)?;
+        (proj.into_project(Vec::new())?, theme_value, presets)
     };
 
     let srt_content = fs_ops::read_srt(&app, &project_id)?;
@@ -459,8 +465,12 @@ pub async fn generate_plan(
     let api_key = secrets::get("anthropic")?
         .ok_or_else(|| AppError::Other("Anthropic API key not set".into()))?;
 
-    let user_prompt = build_user_prompt(&project, &theme_value, &srt_content);
-    let tool_schema = plan_tool_schema();
+    let user_prompt = build_user_prompt(&project, &theme_value, &presets, &srt_content);
+    let valid_preset_ids: Vec<String> = presets
+        .iter()
+        .filter_map(|p| p.get("id").and_then(|v| v.as_str()).map(String::from))
+        .collect();
+    let tool_schema = plan_tool_schema(&valid_preset_ids);
 
     emit_progress(&app, "calling", "Calling Claude Opus…");
 
@@ -495,7 +505,9 @@ pub async fn generate_plan(
     })?;
 
     emit_progress(&app, "parsing", "Validating plan items…");
-    let (valid_items, dropped) = filter_valid_items(&plan.items, project.video_duration);
+    let preset_id_set: std::collections::HashSet<String> = valid_preset_ids.iter().cloned().collect();
+    let (valid_items, dropped) =
+        filter_valid_items(&plan.items, project.video_duration, &preset_id_set);
 
     let cost = (plan.usage.input_tokens as f64) / 1_000_000.0 * OPUS_INPUT_USD_PER_MTOK
         + (plan.usage.output_tokens as f64) / 1_000_000.0 * OPUS_OUTPUT_USD_PER_MTOK;
@@ -544,13 +556,52 @@ fn emit_progress(app: &AppHandle, stage: &str, message: &str) {
     );
 }
 
-fn build_user_prompt(project: &Project, theme: &Value, srt: &str) -> String {
+fn load_all_presets(conn: &rusqlite::Connection) -> AppResult<Vec<Value>> {
+    let mut stmt = conn.prepare("SELECT data FROM presets ORDER BY category ASC, name ASC")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut out = Vec::new();
+    for s in rows {
+        out.push(serde_json::from_str::<Value>(&s?)?);
+    }
+    Ok(out)
+}
+
+fn build_user_prompt(
+    project: &Project,
+    theme: &Value,
+    presets: &[Value],
+    srt: &str,
+) -> String {
     let settings_str = serde_json::to_string_pretty(&project.settings).unwrap_or_default();
     let theme_str = serde_json::to_string_pretty(theme).unwrap_or_default();
+    let preferred = theme
+        .get("preferredPresets")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", "))
+        .unwrap_or_default();
+
+    // Compact preset catalog: id · category · name · tags.
+    let catalog: Vec<String> = presets
+        .iter()
+        .filter_map(|p| {
+            let id = p.get("id").and_then(|v| v.as_str())?;
+            let cat = p.get("category").and_then(|v| v.as_str()).unwrap_or("");
+            let name = p.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let tags = p
+                .get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|t| t.as_str()).collect::<Vec<_>>().join(","))
+                .unwrap_or_default();
+            Some(format!("- {id} · {cat} · {name} [{tags}]"))
+        })
+        .collect();
+
     format!(
         "Project: {name}\nFormat: {format} @ {fps}fps\nDuration: {dur:.3}s\n\n\
          Settings:\n{settings}\n\n\
          Theme:\n{theme}\n\n\
+         PreferredPresets: {preferred}\n\n\
+         PresetLibrary:\n{catalog}\n\n\
          SRT transcript:\n{srt}\n\n\
          Produce the plan via the submit_motion_plan tool.",
         name = project.name,
@@ -559,11 +610,76 @@ fn build_user_prompt(project: &Project, theme: &Value, srt: &str) -> String {
         dur = project.video_duration,
         settings = settings_str,
         theme = theme_str,
+        preferred = if preferred.is_empty() { "(none)".into() } else { preferred },
+        catalog = catalog.join("\n"),
         srt = srt.trim(),
     )
 }
 
-fn plan_tool_schema() -> Value {
+fn plan_tool_schema(preset_ids: &[String]) -> Value {
+    let preset_id_schema = if preset_ids.is_empty() {
+        json!({ "type": "string", "minLength": 1 })
+    } else {
+        json!({ "type": "string", "enum": preset_ids })
+    };
+
+    let preset_instance = json!({
+        "type": "object",
+        "required": ["presetId", "duration", "intensity"],
+        "properties": {
+            "presetId": preset_id_schema,
+            "duration": { "type": "number", "minimum": 0.05, "maximum": 10.0 },
+            "intensity": { "type": "number", "minimum": 0, "maximum": 100 },
+            "direction": {
+                "type": "string",
+                "enum": [
+                    "up", "upRight", "right", "downRight",
+                    "down", "downLeft", "left", "upLeft"
+                ]
+            }
+        }
+    });
+
+    let nullable_motion = json!({
+        "oneOf": [preset_instance, { "type": "null" }]
+    });
+    let motion_list = json!({
+        "type": "array",
+        "maxItems": 3,
+        "items": preset_instance
+    });
+
+    let animation = json!({
+        "type": "object",
+        "required": ["enter", "idle", "exit"],
+        "properties": {
+            "enter": {
+                "type": "object",
+                "required": ["motion", "mask"],
+                "properties": {
+                    "motion": nullable_motion,
+                    "mask": { "type": "null" }
+                }
+            },
+            "idle": {
+                "type": "object",
+                "required": ["motion", "mask"],
+                "properties": {
+                    "motion": motion_list,
+                    "mask": { "type": "null" }
+                }
+            },
+            "exit": {
+                "type": "object",
+                "required": ["motion", "mask"],
+                "properties": {
+                    "motion": nullable_motion,
+                    "mask": { "type": "null" }
+                }
+            }
+        }
+    });
+
     json!({
         "type": "object",
         "properties": {
@@ -571,7 +687,7 @@ fn plan_tool_schema() -> Value {
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "required": ["id", "timestamp", "duration", "tier", "brief", "srtContext"],
+                    "required": ["id", "timestamp", "duration", "tier", "brief", "srtContext", "animation"],
                     "properties": {
                         "id": { "type": "string" },
                         "timestamp": { "type": "number", "minimum": 0 },
@@ -586,7 +702,8 @@ fn plan_tool_schema() -> Value {
                             ]
                         },
                         "brief": { "type": "string", "minLength": 1 },
-                        "srtContext": { "type": "string" }
+                        "srtContext": { "type": "string" },
+                        "animation": animation
                     }
                 }
             }
@@ -595,7 +712,11 @@ fn plan_tool_schema() -> Value {
     })
 }
 
-fn filter_valid_items(raw: &[Value], video_duration: f64) -> (Vec<Value>, usize) {
+fn filter_valid_items(
+    raw: &[Value],
+    video_duration: f64,
+    preset_ids: &std::collections::HashSet<String>,
+) -> (Vec<Value>, usize) {
     let mut out = Vec::new();
     let mut dropped = 0usize;
     for (idx, item) in raw.iter().enumerate() {
@@ -641,7 +762,11 @@ fn filter_valid_items(raw: &[Value], video_duration: f64) -> (Vec<Value>, usize)
         obj.insert("duration".into(), json!((dur * 1000.0).round() / 1000.0));
         obj.insert("status".into(), Value::String("proposed".into()));
         obj.entry("baseState".to_string()).or_insert_with(default_base_state);
-        obj.entry("animation".to_string()).or_insert_with(default_animation);
+        let incoming = obj.remove("animation");
+        obj.insert(
+            "animation".into(),
+            sanitize_animation(incoming, preset_ids),
+        );
         out.push(Value::Object(obj));
     }
     out.sort_by(|a, b| {
@@ -663,11 +788,86 @@ fn default_base_state() -> Value {
 }
 
 fn default_animation() -> Value {
+    // Used as the bedrock default — Claude-provided animations get merged on
+    // top by `sanitize_animation`. Built-in fade-in / fade-out give every
+    // plan item sensible motion even when Claude omits the field.
     json!({
-        "enter": { "motion": null, "mask": null },
-        "idle":  { "motion": [],   "mask": null },
-        "exit":  { "motion": null, "mask": null }
+        "enter": {
+            "motion": { "presetId": "fade-in", "duration": 0.4, "intensity": 100 },
+            "mask": null
+        },
+        "idle":  { "motion": [], "mask": null },
+        "exit": {
+            "motion": { "presetId": "fade-out", "duration": 0.35, "intensity": 100 },
+            "mask": null
+        }
     })
+}
+
+/// Accept Claude's `animation` object (or absent/invalid) and normalize to the
+/// shape the engine expects. Preset refs that don't exist in the catalog are
+/// dropped; malformed channels fall back to the default animation.
+fn sanitize_animation(
+    incoming: Option<Value>,
+    preset_ids: &std::collections::HashSet<String>,
+) -> Value {
+    let default = default_animation();
+    let Some(obj) = incoming.and_then(|v| v.as_object().cloned()) else {
+        return default;
+    };
+
+    let enter_motion = sanitize_instance(obj.get("enter").and_then(|e| e.get("motion")), preset_ids)
+        .or_else(|| default["enter"]["motion"].as_object().cloned().map(Value::Object));
+    let exit_motion = sanitize_instance(obj.get("exit").and_then(|e| e.get("motion")), preset_ids)
+        .or_else(|| default["exit"]["motion"].as_object().cloned().map(Value::Object));
+
+    let idle_motion: Vec<Value> = obj
+        .get("idle")
+        .and_then(|e| e.get("motion"))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .take(3)
+                .filter_map(|v| sanitize_instance(Some(v), preset_ids))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json!({
+        "enter": { "motion": enter_motion, "mask": null },
+        "idle":  { "motion": idle_motion, "mask": null },
+        "exit":  { "motion": exit_motion, "mask": null }
+    })
+}
+
+fn sanitize_instance(
+    v: Option<&Value>,
+    preset_ids: &std::collections::HashSet<String>,
+) -> Option<Value> {
+    let obj = v?.as_object()?;
+    let preset_id = obj.get("presetId").and_then(|v| v.as_str())?;
+    if !preset_ids.contains(preset_id) {
+        return None;
+    }
+    let duration = obj
+        .get("duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.4)
+        .clamp(0.05, 10.0);
+    let intensity = obj
+        .get("intensity")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(100.0)
+        .clamp(0.0, 100.0);
+    let mut out = json!({
+        "presetId": preset_id,
+        "duration": duration,
+        "intensity": intensity,
+    });
+    if let Some(dir) = obj.get("direction").and_then(|v| v.as_str()) {
+        out["direction"] = Value::String(dir.to_string());
+    }
+    Some(out)
 }
 
 fn load_project_row(conn: &rusqlite::Connection, project_id: &str) -> AppResult<ProjectRow> {

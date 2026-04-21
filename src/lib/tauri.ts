@@ -71,6 +71,8 @@ export const commands = {
     invoke<string>("save_theme_reference_image", { themeId, sourcePath }),
   deleteThemeReferenceImage: (path: string) =>
     invoke<void>("delete_theme_reference_image", { path }),
+  readFileAsString: (path: string) =>
+    invoke<string>("read_file_as_string", { path }),
 
   // Usage
   getUsageSince: (sinceMs: number) =>

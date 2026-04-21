@@ -46,6 +46,7 @@ pub fn run() {
             commands::copy_srt_into_project,
             commands::save_theme_reference_image,
             commands::delete_theme_reference_image,
+            commands::read_file_as_string,
             commands::get_usage_since,
             commands::generate_plan,
         ])

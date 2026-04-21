@@ -82,3 +82,8 @@ pub fn delete_theme_reference(path: &Path) -> AppResult<()> {
     }
     Ok(())
 }
+
+pub fn read_string(path: &Path) -> AppResult<String> {
+    fs::read_to_string(path)
+        .map_err(|e| AppError::Other(format!("read {}: {e}", path.display())))
+}

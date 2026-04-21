@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { LayoutDashboard, Palette, Sparkles, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
 
 import { useAppStore } from "@/state/appStore";
+import { usePresetsStore } from "@/state/presetsStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
 
 interface NavItem {
@@ -23,6 +24,11 @@ const APP_VERSION = "v0.1.0 · LOCAL";
 
 export function AppShell() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const loadPresets = usePresetsStore((s) => s.load);
+
+  useEffect(() => {
+    void loadPresets();
+  }, [loadPresets]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
