@@ -59,6 +59,19 @@
     user-select: text;
   }
 
+  /* Keyboard focus ring — lime with alpha, never outline-none globally. */
+  :focus-visible {
+    outline: 2px solid rgba(200, 255, 0, 0.45);
+    outline-offset: 1px;
+    border-radius: 4px;
+  }
+
+  /* Remove the default focus ring from the mouse-click path to keep the
+     neon ring reserved for keyboard users. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
   /* Thin dark scrollbars */
   * {
     scrollbar-width: thin;

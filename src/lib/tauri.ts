@@ -135,6 +135,32 @@ export const commands = {
       outputPath,
       format,
     }),
+  renderProjectFull: (
+    projectId: string,
+    outputPath?: string,
+    format: "webm" | "prores" = "prores",
+  ) =>
+    invoke<RenderItemResult>("render_project_full", {
+      projectId,
+      outputPath,
+      format,
+    }),
+
+  // Export
+  writeProjectExport: (projectId: string, filename: string, contents: string) =>
+    invoke<string>("write_project_export", { projectId, filename, contents }),
+  zipProjectExports: (projectId: string, projectName: string) =>
+    invoke<string>("zip_project_exports", { projectId, projectName }),
+  revealInFinder: (path: string) => invoke<void>("reveal_in_finder", { path }),
+
+  // Logging
+  getLogPath: () => invoke<string | null>("get_log_path"),
+  clearLogs: () => invoke<void>("clear_logs"),
+  logFromFrontend: (
+    level: "info" | "warn" | "error",
+    target: string,
+    message: string,
+  ) => invoke<void>("log_from_frontend", { level, target, message }),
 } as const;
 
 /** Subscribes to plan progress events. Returns an unlisten function. */

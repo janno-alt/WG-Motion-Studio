@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Renders a single plan item as a WebM-alpha or ProRes-4444 clip.
-// Invoked by the Tauri backend with one argument: the path to a JSON
-// file containing all render inputs. Progress events are written to
-// stdout as NDJSON. Errors exit non-zero after writing an error event.
+// Renders either a single plan item or a full project composition as a
+// WebM-alpha / ProRes-4444 clip. Invoked by the Tauri backend with one
+// argument: the path to a JSON file containing `mode` (default "item"),
+// the render inputs, and output config. Progress is NDJSON on stdout.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -27,7 +27,7 @@ async function main() {
   }
 
   const input = JSON.parse(fs.readFileSync(inputPath, "utf8"));
-  const { item, theme, presets, outputPath, format } = input;
+  const { outputPath, format, mode = "item" } = input;
 
   if (!fs.existsSync(path.dirname(outputPath))) {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -49,11 +49,17 @@ async function main() {
     }),
   });
 
+  const compositionId = mode === "project" ? "MotionStudioProject" : "SingleGraphicPreview";
+  const inputProps =
+    mode === "project"
+      ? { project: input.project, theme: input.theme, presets: input.presets, videoSrc: null }
+      : { item: input.item, theme: input.theme, presets: input.presets };
+
   emit("progress", { phase: "selecting" });
   const composition = await selectComposition({
     serveUrl: bundleLocation,
-    id: "SingleGraphicPreview",
-    inputProps: { item, theme, presets },
+    id: compositionId,
+    inputProps,
   });
 
   const codec = format === "prores" ? "prores" : "vp9";
@@ -68,7 +74,7 @@ async function main() {
     outputLocation: outputPath,
     pixelFormat: format === "prores" ? "yuva444p10le" : "yuva420p",
     imageFormat: "png",
-    inputProps: { item, theme, presets },
+    inputProps,
     onProgress: ({ renderedFrames }) => {
       emit("progress", {
         phase: "rendering",

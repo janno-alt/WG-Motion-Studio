@@ -9,7 +9,9 @@ use crate::assets::{self, GenerateAllSummary};
 use crate::claude::{self, PlanRequest};
 use crate::db::{DbState, ensure_exists};
 use crate::error::{AppError, AppResult};
+use crate::export;
 use crate::fs_ops;
+use crate::logger;
 use crate::paths::{self, AppPaths};
 use crate::render;
 use crate::secrets;
@@ -374,6 +376,75 @@ pub async fn generate_single_asset(app: AppHandle, item_id: String) -> AppResult
 #[serde(rename_all = "camelCase")]
 pub struct RenderItemResult {
     pub output_path: String,
+}
+
+/* ------------------------------------------------------------------ */
+/*  Export                                                             */
+/* ------------------------------------------------------------------ */
+
+#[tauri::command]
+pub fn write_project_export(
+    app: AppHandle,
+    project_id: String,
+    filename: String,
+    contents: String,
+) -> AppResult<String> {
+    let p = export::write_export(&app, &project_id, &filename, &contents)?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn zip_project_exports(
+    app: AppHandle,
+    project_id: String,
+    project_name: String,
+) -> AppResult<String> {
+    let p = export::zip_project(&app, &project_id, &project_name)?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn render_project_full(
+    app: AppHandle,
+    project_id: String,
+    output_path: Option<String>,
+    format: Option<String>,
+) -> AppResult<RenderItemResult> {
+    let fmt = format.as_deref().unwrap_or("webm");
+    let out = render::render_project_full(&app, &project_id, output_path.as_deref(), fmt).await?;
+    Ok(RenderItemResult { output_path: out })
+}
+
+#[tauri::command]
+pub fn reveal_in_finder(path: String) -> AppResult<()> {
+    // macOS: `open -R` reveals the file in Finder.
+    let _ = std::process::Command::new("open").arg("-R").arg(&path).spawn();
+    Ok(())
+}
+
+/* ------------------------------------------------------------------ */
+/*  Logging                                                            */
+/* ------------------------------------------------------------------ */
+
+#[tauri::command]
+pub fn get_log_path() -> AppResult<Option<String>> {
+    Ok(logger::path().map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub fn clear_logs() -> AppResult<()> {
+    logger::clear()
+}
+
+#[tauri::command]
+pub fn log_from_frontend(level: String, target: String, message: String) -> AppResult<()> {
+    let l = match level.as_str() {
+        "warn" => logger::Level::Warn,
+        "error" => logger::Level::Error,
+        _ => logger::Level::Info,
+    };
+    logger::log(l, &target, &message);
+    Ok(())
 }
 
 #[tauri::command]

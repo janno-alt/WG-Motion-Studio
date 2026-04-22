@@ -4,6 +4,7 @@ import { BudgetSection } from "./sections/BudgetSection";
 import { UpdateCheckSection } from "./sections/UpdateCheckSection";
 import { ExportPathsSection } from "./sections/ExportPathsSection";
 import { RenderQualitySection } from "./sections/RenderQualitySection";
+import { LogsSection } from "./sections/LogsSection";
 
 export function SettingsScreen() {
   return (
@@ -15,6 +16,7 @@ export function SettingsScreen() {
           <BudgetSection />
           <RenderQualitySection />
           <ExportPathsSection />
+          <LogsSection />
           <UpdateCheckSection />
         </div>
       </div>

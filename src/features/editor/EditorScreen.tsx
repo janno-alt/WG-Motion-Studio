@@ -176,7 +176,17 @@ export function EditorScreen() {
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    const onExport = () => void exportAlpha();
+    const onTogglePlay = () => togglePlay();
+    window.addEventListener("editor:exportAlpha", onExport as EventListener);
+    window.addEventListener("editor:togglePlay", onTogglePlay as EventListener);
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("editor:exportAlpha", onExport as EventListener);
+      window.removeEventListener("editor:togglePlay", onTogglePlay as EventListener);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history]);
 

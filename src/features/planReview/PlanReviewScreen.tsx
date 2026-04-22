@@ -69,6 +69,28 @@ export function PlanReviewScreen() {
     [project, selectedItemId],
   );
 
+  useEffect(() => {
+    if (!project) return;
+    const onKey = (e: KeyboardEvent) => {
+      const inField =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement;
+      if (inField) return;
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const items = project.planItems;
+      if (items.length === 0) return;
+      const idx = selectedItemId ? items.findIndex((p) => p.id === selectedItemId) : -1;
+      const next =
+        e.key === "ArrowDown"
+          ? Math.min(items.length - 1, idx + 1)
+          : Math.max(0, idx - 1);
+      setSelectedItemId(items[next]?.id ?? null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [project, selectedItemId]);
+
   if (!project) {
     return (
       <div className="flex h-full flex-col">

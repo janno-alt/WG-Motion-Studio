@@ -3,8 +3,10 @@ mod claude;
 mod commands;
 mod db;
 mod error;
+mod export;
 mod fs_ops;
 mod gemini;
+mod logger;
 mod paths;
 mod render;
 mod secrets;
@@ -19,6 +21,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
+            if let Err(e) = logger::init(&handle) {
+                eprintln!("[logger] init failed: {e}");
+            }
             let db_path = paths::db_path(&handle)?;
             if let Some(parent) = db_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -56,6 +61,13 @@ pub fn run() {
             commands::generate_all_assets,
             commands::generate_single_asset,
             commands::render_item_overlay,
+            commands::render_project_full,
+            commands::write_project_export,
+            commands::zip_project_exports,
+            commands::reveal_in_finder,
+            commands::get_log_path,
+            commands::clear_logs,
+            commands::log_from_frontend,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

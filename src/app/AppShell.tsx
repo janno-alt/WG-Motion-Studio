@@ -7,6 +7,7 @@ import { useAppStore } from "@/state/appStore";
 import { usePresetsStore } from "@/state/presetsStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
 import { CommandPalette } from "@/components/CommandPalette";
+import { APP_VERSION } from "@/lib/version";
 
 interface NavItem {
   to: string;
@@ -21,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-const APP_VERSION = "v0.1.0 · LOCAL";
+const APP_VERSION_LABEL = `v${APP_VERSION} · LOCAL`;
 
 export function AppShell() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
@@ -63,7 +64,7 @@ export function AppShell() {
         </div>
         {!sidebarCollapsed ? (
           <div className="border-t border-border-subtle px-3 py-2 font-mono text-2xs text-text-muted">
-            {APP_VERSION}
+            {APP_VERSION_LABEL}
           </div>
         ) : null}
       </aside>
