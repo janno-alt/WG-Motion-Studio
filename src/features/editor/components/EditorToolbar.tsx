@@ -1,4 +1,4 @@
-import { ArrowLeft, Pause, Play, Repeat, Save, Undo2, Redo2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Download, Pause, Play, Repeat, Save, Undo2, Redo2, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { formatTimestamp } from "@/lib/srt";
@@ -21,6 +21,8 @@ interface Props {
   onReset: () => void;
   onBack: () => void;
   onSaveAndBack: () => void;
+  onExportAlpha: () => void;
+  exporting?: boolean;
 }
 
 const SAVE_LABEL: Record<SaveState, string> = {
@@ -55,6 +57,8 @@ export function EditorToolbar(props: Props) {
     onReset,
     onBack,
     onSaveAndBack,
+    onExportAlpha,
+    exporting,
   } = props;
 
   return (
@@ -127,6 +131,15 @@ export function EditorToolbar(props: Props) {
         </button>
         <Button variant="ghost" size="sm" leadingIcon={<RotateCcw size={13} />} onClick={onReset}>
           Reset to AI
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          leadingIcon={<Download size={13} />}
+          disabled={exporting}
+          onClick={onExportAlpha}
+        >
+          {exporting ? "Exporting…" : "Export alpha"}
         </Button>
         <Button variant="primary" size="sm" leadingIcon={<Save size={13} />} onClick={onSaveAndBack}>
           Save &amp; back

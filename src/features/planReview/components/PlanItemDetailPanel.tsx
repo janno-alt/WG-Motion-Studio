@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Slider from "@radix-ui/react-slider";
-import { AlertTriangle, Trash2, Pencil } from "lucide-react";
+import { AlertTriangle, Trash2, Pencil, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Field, Input, Textarea } from "@/components/Input";
 import { TierBadge } from "@/components/TierBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { commands } from "@/lib/tauri";
 import { formatTimestamp } from "@/lib/srt";
 import type { PlanItem, Project, StyleVariant, Tier1ComponentType } from "@/types";
 
@@ -179,8 +181,20 @@ export function PlanItemDetailPanel({ project, item, onUpdate, onDelete }: Props
             onBlur={(e) => commit({ brief: e.target.value })}
             className="text-xs"
           />
-          <Button variant="secondary" size="sm" disabled title="Enabled in phase 5">
-            Regenerate with new brief
+          <Button
+            variant="secondary"
+            size="sm"
+            leadingIcon={<RefreshCw size={12} />}
+            onClick={async () => {
+              try {
+                await commands.generateSingleAsset(item.id);
+                toast.success("Asset regenerated");
+              } catch (err) {
+                toast.error(`Regenerate failed: ${String(err)}`);
+              }
+            }}
+          >
+            Regenerate asset
           </Button>
         </Section>
 

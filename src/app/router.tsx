@@ -6,6 +6,7 @@ import { NewProjectScreen } from "@/features/setup/NewProjectScreen";
 import { PlanReviewScreen } from "@/features/planReview/PlanReviewScreen";
 import { EditorScreen } from "@/features/editor/EditorScreen";
 import { GenerationProgressScreen } from "@/features/generation/GenerationProgressScreen";
+import { AssetGenerationScreen } from "@/features/generation/AssetGenerationScreen";
 import { ExportScreen } from "@/features/export/ExportScreen";
 import { ThemesScreen } from "@/features/themes/ThemesScreen";
 import { PresetsScreen } from "@/features/presets/PresetsScreen";
@@ -23,6 +24,7 @@ export const router = createMemoryRouter(
         { path: "projects/:id", element: <PlanReviewScreen /> },
         { path: "projects/:id/editor/:itemId", element: <EditorScreen /> },
         { path: "projects/:id/generating", element: <GenerationProgressScreen /> },
+        { path: "projects/:id/generating-assets", element: <AssetGenerationScreen /> },
         { path: "projects/:id/export", element: <ExportScreen /> },
         { path: "themes", element: <ThemesScreen /> },
         { path: "themes/:themeId", element: <ThemesScreen /> },

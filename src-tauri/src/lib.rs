@@ -1,10 +1,14 @@
+mod assets;
 mod claude;
 mod commands;
 mod db;
 mod error;
 mod fs_ops;
+mod gemini;
 mod paths;
+mod render;
 mod secrets;
+mod svg;
 
 use tauri::Manager;
 
@@ -49,6 +53,9 @@ pub fn run() {
             commands::read_file_as_string,
             commands::get_usage_since,
             commands::generate_plan,
+            commands::generate_all_assets,
+            commands::generate_single_asset,
+            commands::render_item_overlay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

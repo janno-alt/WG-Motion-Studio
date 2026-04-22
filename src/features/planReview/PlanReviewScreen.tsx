@@ -148,8 +148,8 @@ export function PlanReviewScreen() {
             <Button
               variant="primary"
               size="sm"
-              disabled
-              title="Not implemented yet — phase 5"
+              disabled={project.planItems.length === 0}
+              onClick={() => navigate(`/projects/${project.id}/generating-assets`)}
             >
               Generate assets
             </Button>

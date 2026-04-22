@@ -114,3 +114,79 @@ pub async fn request_plan(api_key: &str, req: &PlanRequest<'_>) -> AppResult<Pla
         model: parsed.model,
     })
 }
+
+/* ------------------------------------------------------------------ */
+/*  SVG generation                                                     */
+/* ------------------------------------------------------------------ */
+
+const SVG_MAX_TOKENS: u32 = 4096;
+
+#[derive(Debug)]
+pub struct SvgResponse {
+    pub svg: String,
+    pub usage: ClaudeUsage,
+    pub model: String,
+}
+
+pub async fn request_svg(api_key: &str, system_prompt: &str, user_prompt: &str) -> AppResult<SvgResponse> {
+    let body = json!({
+        "model": MODEL,
+        "max_tokens": SVG_MAX_TOKENS,
+        "system": system_prompt,
+        "messages": [{ "role": "user", "content": user_prompt }],
+    });
+
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| AppError::Other(format!("reqwest build: {e}")))?;
+
+    let http = client
+        .post(API_URL)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", API_VERSION)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Other(format!("anthropic request: {e}")))?;
+
+    let status = http.status();
+    let text = http
+        .text()
+        .await
+        .map_err(|e| AppError::Other(format!("read body: {e}")))?;
+
+    if !status.is_success() {
+        return Err(AppError::Other(format!("Anthropic API {status}: {text}")));
+    }
+
+    let parsed: RawResponse =
+        serde_json::from_str(&text).map_err(|e| AppError::Other(format!("parse response: {e}")))?;
+
+    let mut collected = String::new();
+    for block in parsed.content {
+        if let ContentBlock::Text { text } = block {
+            collected.push_str(&text);
+        }
+    }
+
+    let svg = extract_svg(&collected)
+        .ok_or_else(|| AppError::Other("Claude response contained no <svg> tag".into()))?;
+
+    Ok(SvgResponse {
+        svg,
+        usage: parsed.usage,
+        model: parsed.model,
+    })
+}
+
+/// Find the first `<svg …>…</svg>` block in `s`, tolerating prose around it.
+fn extract_svg(s: &str) -> Option<String> {
+    let start = s.find("<svg")?;
+    let end = s.rfind("</svg>")? + "</svg>".len();
+    if end <= start {
+        return None;
+    }
+    Some(s[start..end].to_string())
+}

@@ -34,6 +34,40 @@ export interface GeneratePlanResult {
   project: Project;
 }
 
+export interface AssetProgress {
+  itemId: string;
+  phase:
+    | "starting"
+    | "calling"
+    | "validating"
+    | "saving"
+    | "done"
+    | "cached"
+    | "error";
+  message?: string | null;
+  error?: string | null;
+}
+
+export interface GenerateAllSummary {
+  total: number;
+  succeeded: number;
+  skippedCached: number;
+  failed: number;
+  costUsd: number;
+}
+
+export interface RenderProgress {
+  itemId: string;
+  phase: "starting" | "bundling" | "selecting" | "rendering" | "done" | "error";
+  frame?: number | null;
+  total?: number | null;
+  message?: string | null;
+}
+
+export interface RenderItemResult {
+  outputPath: string;
+}
+
 export const commands = {
   // Paths
   getAppPaths: () => invoke<AppPaths>("get_app_paths"),
@@ -81,6 +115,26 @@ export const commands = {
   // Plan generation
   generatePlan: (projectId: string, planningPrompt: string) =>
     invoke<GeneratePlanResult>("generate_plan", { projectId, planningPrompt }),
+
+  // Asset generation
+  generateAllAssets: (projectId: string) =>
+    invoke<GenerateAllSummary>("generate_all_assets", { projectId }),
+  generateSingleAsset: (itemId: string) =>
+    invoke<void>("generate_single_asset", { itemId }),
+
+  // Rendering
+  renderItemOverlay: (
+    projectId: string,
+    itemId: string,
+    outputPath?: string,
+    format: "webm" | "prores" = "webm",
+  ) =>
+    invoke<RenderItemResult>("render_item_overlay", {
+      projectId,
+      itemId,
+      outputPath,
+      format,
+    }),
 } as const;
 
 /** Subscribes to plan progress events. Returns an unlisten function. */
@@ -89,4 +143,16 @@ export async function onPlanProgress(
 ): Promise<() => void> {
   const un = await listen<PlanProgress>("plan:progress", (e) => handler(e.payload));
   return un;
+}
+
+export async function onAssetProgress(
+  handler: (p: AssetProgress) => void,
+): Promise<() => void> {
+  return listen<AssetProgress>("asset:progress", (e) => handler(e.payload));
+}
+
+export async function onRenderProgress(
+  handler: (p: RenderProgress) => void,
+): Promise<() => void> {
+  return listen<RenderProgress>("render:progress", (e) => handler(e.payload));
 }

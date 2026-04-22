@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::assets::{self, GenerateAllSummary};
 use crate::claude::{self, PlanRequest};
 use crate::db::{DbState, ensure_exists};
 use crate::error::{AppError, AppResult};
 use crate::fs_ops;
 use crate::paths::{self, AppPaths};
+use crate::render;
 use crate::secrets;
 
 /* ------------------------------------------------------------------ */
@@ -345,6 +347,46 @@ pub fn delete_theme_reference_image(path: String) -> AppResult<()> {
 #[tauri::command]
 pub fn read_file_as_string(path: String) -> AppResult<String> {
     fs_ops::read_string(&PathBuf::from(path))
+}
+
+/* ------------------------------------------------------------------ */
+/*  Asset generation                                                   */
+/* ------------------------------------------------------------------ */
+
+#[tauri::command]
+pub async fn generate_all_assets(
+    app: AppHandle,
+    project_id: String,
+) -> AppResult<GenerateAllSummary> {
+    assets::generate_all(app, project_id).await
+}
+
+#[tauri::command]
+pub async fn generate_single_asset(app: AppHandle, item_id: String) -> AppResult<()> {
+    assets::generate_single(app, item_id).await
+}
+
+/* ------------------------------------------------------------------ */
+/*  Rendering                                                          */
+/* ------------------------------------------------------------------ */
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderItemResult {
+    pub output_path: String,
+}
+
+#[tauri::command]
+pub async fn render_item_overlay(
+    app: AppHandle,
+    project_id: String,
+    item_id: String,
+    output_path: Option<String>,
+    format: Option<String>, // "webm" | "prores"
+) -> AppResult<RenderItemResult> {
+    let fmt = format.as_deref().unwrap_or("webm");
+    let out = render::render_single_item(&app, &project_id, &item_id, output_path.as_deref(), fmt).await?;
+    Ok(RenderItemResult { output_path: out })
 }
 
 /* ------------------------------------------------------------------ */
@@ -1040,7 +1082,7 @@ fn write_plan_items(
     Ok(())
 }
 
-fn now_ms() -> i64 {
+pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)

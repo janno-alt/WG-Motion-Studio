@@ -7,7 +7,8 @@ use crate::error::AppResult;
 /// against this list and every newer migration is run in a single transaction.
 ///
 /// NEVER edit a migration that has shipped. Add a new one instead.
-const MIGRATIONS: &[(i32, &str)] = &[(
+const MIGRATIONS: &[(i32, &str)] = &[
+    (
     1,
     r#"
     CREATE TABLE projects (
@@ -76,7 +77,15 @@ const MIGRATIONS: &[(i32, &str)] = &[(
     CREATE INDEX idx_usage_project ON api_usage(project_id);
     CREATE INDEX idx_usage_date ON api_usage(created_at);
     "#,
-)];
+    ),
+    (
+        2,
+        r#"
+        ALTER TABLE plan_items ADD COLUMN asset_hash TEXT;
+        ALTER TABLE plan_items ADD COLUMN generated_at INTEGER;
+        "#,
+    ),
+];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {
     conn.execute(

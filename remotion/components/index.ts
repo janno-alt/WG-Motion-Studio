@@ -5,20 +5,34 @@ import { IconPopIn } from "./IconPopIn";
 import { HighlightCircle } from "./HighlightCircle";
 import { TextCallout } from "./TextCallout";
 import { NumberEmphasis } from "./NumberEmphasis";
+import { SlideInIllustration } from "./SlideInIllustration";
+import { ProgressBar } from "./ProgressBar";
+import { LowerThird } from "./LowerThird";
+import { ArrowPointer } from "./ArrowPointer";
 import type { Tier1ComponentProps } from "./types";
 
-/**
- * Phase-3 base set. Remaining components (SlideInIllustration, ProgressBar,
- * LowerThird, ArrowPointer) land in phase 5.
- */
-export const TIER1_COMPONENTS: Partial<
-  Record<Tier1ComponentType, ComponentType<Tier1ComponentProps>>
+export const TIER1_COMPONENTS: Record<
+  Tier1ComponentType,
+  ComponentType<Tier1ComponentProps>
 > = {
   IconPopIn,
   HighlightCircle,
   TextCallout,
   NumberEmphasis,
+  SlideInIllustration,
+  ProgressBar,
+  LowerThird,
+  ArrowPointer,
 };
 
-export { IconPopIn, HighlightCircle, TextCallout, NumberEmphasis };
+export {
+  IconPopIn,
+  HighlightCircle,
+  TextCallout,
+  NumberEmphasis,
+  SlideInIllustration,
+  ProgressBar,
+  LowerThird,
+  ArrowPointer,
+};
 export type { Tier1ComponentProps } from "./types";

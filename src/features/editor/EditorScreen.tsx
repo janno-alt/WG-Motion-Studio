@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import type { PlayerRef } from "@remotion/player";
 
@@ -38,6 +39,7 @@ export function EditorScreen() {
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const playerRef = useRef<PlayerRef | null>(null);
   const [editorName, setEditorName] = useState("");
 
@@ -204,6 +206,30 @@ export function EditorScreen() {
     navigate(project ? `/projects/${project.id}` : "/dashboard");
   };
 
+  const exportAlpha = async () => {
+    if (!project || !item) return;
+    setExporting(true);
+    try {
+      // Save dialog for user-chosen destination.
+      const picked = await saveDialog({
+        defaultPath: `${item.id}.webm`,
+        filters: [{ name: "WebM (alpha)", extensions: ["webm"] }],
+      });
+      const output = picked ?? undefined;
+      await saveNow();
+      toast.loading("Rendering alpha overlay…", { id: "export-alpha" });
+      const result = await commands.renderItemOverlay(project.id, item.id, output, "webm");
+      toast.success(`Rendered → ${result.outputPath}`, {
+        id: "export-alpha",
+        duration: 8000,
+      });
+    } catch (err) {
+      toast.error(`Export failed: ${String(err)}`, { id: "export-alpha" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const resetToAi = () => {
     if (!itemId) return;
     const raw = sessionStorage.getItem(SESSION_ORIGINAL_PREFIX + itemId);
@@ -255,6 +281,8 @@ export function EditorScreen() {
         onReset={resetToAi}
         onBack={goBack}
         onSaveAndBack={() => void saveAndBack()}
+        onExportAlpha={() => void exportAlpha()}
+        exporting={exporting}
       />
 
       <div className="flex min-h-0 flex-1">
