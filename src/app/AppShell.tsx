@@ -6,6 +6,7 @@ import { LayoutDashboard, Palette, Sparkles, Settings, PanelLeftClose, PanelLeft
 import { useAppStore } from "@/state/appStore";
 import { usePresetsStore } from "@/state/presetsStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
+import { CommandPalette } from "@/components/CommandPalette";
 
 interface NavItem {
   to: string;
@@ -69,6 +70,7 @@ export function AppShell() {
       <main className="flex min-w-0 flex-1 flex-col">
         <Outlet />
       </main>
+      <CommandPalette />
     </div>
   );
 }

@@ -14,6 +14,26 @@
     color-scheme: dark;
   }
 
+  @keyframes thumb-pop {
+    0% { transform: scale(0); opacity: 0; }
+    40% { transform: scale(1.15); opacity: 1; }
+    70% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes thumb-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+  }
+  @keyframes thumb-fade {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(4px); }
+  }
+  @keyframes thumb-wipe {
+    0% { clip-path: inset(0 100% 0 0); }
+    55% { clip-path: inset(0 0 0 0); }
+    100% { clip-path: inset(0 0 0 100%); }
+  }
+
   html,
   body,
   #root {

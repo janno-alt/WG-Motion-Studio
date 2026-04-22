@@ -11,6 +11,8 @@ interface Props {
   srtBlocks: SrtBlock[];
   themePrimary: string;
   onItemClick?: (item: PlanItem) => void;
+  onItemDoubleClick?: (item: PlanItem) => void;
+  selectedItemId?: string | null;
 }
 
 const PX_PER_SECOND = 40;
@@ -22,6 +24,8 @@ export function Timeline({
   srtBlocks,
   themePrimary,
   onItemClick,
+  onItemDoubleClick,
+  selectedItemId,
 }: Props) {
   const width = Math.max(MIN_WIDTH, duration * PX_PER_SECOND + 80);
 
@@ -62,6 +66,8 @@ export function Timeline({
                 item={item}
                 themePrimary={themePrimary}
                 onClick={onItemClick}
+                onDoubleClick={onItemDoubleClick}
+                selected={selectedItemId === item.id}
               />
             ))}
           </div>
@@ -92,10 +98,14 @@ function PlanPin({
   item,
   themePrimary,
   onClick,
+  onDoubleClick,
+  selected,
 }: {
   item: PlanItem;
   themePrimary: string;
   onClick?: (item: PlanItem) => void;
+  onDoubleClick?: (item: PlanItem) => void;
+  selected?: boolean;
 }) {
   const left = item.timestamp * PX_PER_SECOND + 40;
   return (
@@ -104,8 +114,17 @@ function PlanPin({
         <button
           type="button"
           onClick={() => onClick?.(item)}
-          className="group absolute flex h-full flex-col items-center"
-          style={{ left: left - 10, width: 20 }}
+          onDoubleClick={() => onDoubleClick?.(item)}
+          className={[
+            "group absolute flex h-full flex-col items-center",
+            selected ? "z-10" : "",
+          ].join(" ")}
+          style={{
+            left: left - 10,
+            width: 20,
+            outline: selected ? `1px solid ${themePrimary}` : undefined,
+            outlineOffset: selected ? 2 : undefined,
+          }}
         >
           <div
             className="h-full w-0.5 rounded-full bg-border-subtle transition-colors group-hover:bg-text-primary"

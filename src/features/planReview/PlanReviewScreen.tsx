@@ -10,13 +10,14 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Timeline } from "./components/Timeline";
 import { PlanPlayer } from "./components/PlanPlayer";
+import { PlanItemDetailPanel } from "./components/PlanItemDetailPanel";
 import { commands } from "@/lib/tauri";
 import { PLANNING_PROMPT } from "@/lib/planningPrompt";
 import { parseSrt, type SrtBlock } from "@/lib/srt";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useThemesStore } from "@/state/themesStore";
 import { usePresetsStore } from "@/state/presetsStore";
-import type { Project, Theme } from "@/types";
+import type { PlanItem, Project, Theme } from "@/types";
 
 export function PlanReviewScreen() {
   const { id } = useParams();
@@ -29,6 +30,7 @@ export function PlanReviewScreen() {
   const [srtBlocks, setSrtBlocks] = useState<SrtBlock[]>([]);
   const [confirmingRegen, setConfirmingRegen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (projects.length === 0) void load();
@@ -62,6 +64,11 @@ export function PlanReviewScreen() {
     [themes, project?.clientId],
   );
 
+  const selectedItem = useMemo<PlanItem | null>(
+    () => project?.planItems.find((p) => p.id === selectedItemId) ?? null,
+    [project, selectedItemId],
+  );
+
   if (!project) {
     return (
       <div className="flex h-full flex-col">
@@ -86,6 +93,40 @@ export function PlanReviewScreen() {
       toast.error(`Regenerate failed: ${String(err)}`);
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const updateItem = async (next: PlanItem) => {
+    if (!project) return;
+    const updated: Project = {
+      ...project,
+      planItems: project.planItems.map((p) => (p.id === next.id ? next : p)),
+      updatedAt: Date.now(),
+    };
+    try {
+      const saved = await commands.updateProject(updated);
+      setProject(saved);
+      upsert(saved);
+    } catch (err) {
+      toast.error(`Update failed: ${String(err)}`);
+    }
+  };
+
+  const deleteItem = async (victim: PlanItem) => {
+    if (!project) return;
+    const updated: Project = {
+      ...project,
+      planItems: project.planItems.filter((p) => p.id !== victim.id),
+      updatedAt: Date.now(),
+    };
+    try {
+      const saved = await commands.updateProject(updated);
+      setProject(saved);
+      upsert(saved);
+      setSelectedItemId(null);
+      toast.success("Item removed");
+    } catch (err) {
+      toast.error(`Delete failed: ${String(err)}`);
     }
   };
 
@@ -141,19 +182,24 @@ export function PlanReviewScreen() {
             planItems={project.planItems}
             srtBlocks={srtBlocks}
             themePrimary={theme?.colors.primary ?? "#C8FF00"}
-            onItemClick={(item) =>
+            onItemClick={(item) => setSelectedItemId(item.id)}
+            onItemDoubleClick={(item) =>
               navigate(`/projects/${project.id}/editor/${item.id}`)
             }
+            selectedItemId={selectedItemId}
           />
-        </div>
-        {theme ? (
-          <aside className="flex w-[380px] shrink-0 flex-col border-l border-border-subtle bg-surface-1">
-            <div className="border-b border-border-subtle px-3 py-2 text-2xs uppercase tracking-wide text-text-muted">
-              Preview
+          {theme ? (
+            <div className="shrink-0 border-t border-border-subtle">
+              <PlanPlayer project={project} theme={theme} presets={presets} />
             </div>
-            <PlanPlayer project={project} theme={theme} presets={presets} />
-          </aside>
-        ) : null}
+          ) : null}
+        </div>
+        <PlanItemDetailPanel
+          project={project}
+          item={selectedItem}
+          onUpdate={(next) => void updateItem(next)}
+          onDelete={(v) => void deleteItem(v)}
+        />
       </div>
 
       <ConfirmDialog
