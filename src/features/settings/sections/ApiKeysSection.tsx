@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { commands } from "@/lib/tauri";
+import { commands, type Provider } from "@/lib/tauri";
 import { SettingsSection } from "./SettingsSection";
-
-type Provider = "anthropic" | "gemini";
 
 interface Row {
   provider: Provider;
@@ -14,11 +12,6 @@ interface Row {
 
 const ROWS: Row[] = [
   {
-    provider: "anthropic",
-    label: "Anthropic API key",
-    placeholder: "sk-ant-…",
-  },
-  {
     provider: "gemini",
     label: "Google Gemini API key",
     placeholder: "AIza…",
@@ -26,23 +19,14 @@ const ROWS: Row[] = [
 ];
 
 export function ApiKeysSection() {
-  const [present, setPresent] = useState<Record<Provider, boolean>>({
-    anthropic: false,
-    gemini: false,
-  });
-  const [drafts, setDrafts] = useState<Record<Provider, string>>({
-    anthropic: "",
-    gemini: "",
-  });
+  const [present, setPresent] = useState<Record<Provider, boolean>>({ gemini: false });
+  const [drafts, setDrafts] = useState<Record<Provider, string>>({ gemini: "" });
   const [busy, setBusy] = useState<Provider | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const [a, g] = await Promise.all([
-        commands.hasApiKey("anthropic"),
-        commands.hasApiKey("gemini"),
-      ]);
-      setPresent({ anthropic: a, gemini: g });
+      const g = await commands.hasApiKey("gemini");
+      setPresent({ gemini: g });
     })();
   }, []);
 

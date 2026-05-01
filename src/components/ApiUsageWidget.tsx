@@ -2,16 +2,19 @@ import { useEffect } from "react";
 
 import { useAppStore } from "@/state/appStore";
 import { useUsageStore } from "@/state/usageStore";
-import { formatUsd } from "@/lib/pricing";
+
+const formatUsd = (usd: number) =>
+  usd.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 interface Props {
   collapsed: boolean;
 }
 
-/**
- * Sidebar footer widget showing month-to-date API spend vs. configured budget.
- * Queries `api_usage` via the Rust `get_usage_since` command.
- */
 export function ApiUsageWidget({ collapsed }: Props) {
   const budgetUsd = useAppStore((s) => s.monthlyBudgetUsd);
   const { summary, refresh } = useUsageStore();
@@ -61,7 +64,6 @@ export function ApiUsageWidget({ collapsed }: Props) {
       </div>
       {summary ? (
         <div className="mt-1.5 flex justify-between text-2xs text-text-muted">
-          <span>Claude {formatUsd(summary.anthropicCostUsd)}</span>
           <span>Gemini {formatUsd(summary.geminiCostUsd)}</span>
         </div>
       ) : null}

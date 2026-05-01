@@ -4,8 +4,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { useAppStore } from "@/state/appStore";
-import { formatUsd } from "@/lib/pricing";
 import { SettingsSection } from "./SettingsSection";
+
+const formatUsd = (usd: number) =>
+  usd.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 export function BudgetSection() {
   const { monthlyBudgetUsd, setMonthlyBudget } = useAppStore();

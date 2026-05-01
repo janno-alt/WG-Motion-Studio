@@ -1,13 +1,12 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 
-import type { Project, Theme, Preset } from "@/types";
+import type { Project, Theme } from "@/types";
 
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   return tauriInvoke<T>(cmd, args);
 }
 
-export type Provider = "anthropic" | "gemini";
+export type Provider = "gemini";
 
 export interface AppPaths {
   dbPath: string;
@@ -17,55 +16,8 @@ export interface AppPaths {
 
 export interface UsageSummary {
   totalCostUsd: number;
-  anthropicCostUsd: number;
   geminiCostUsd: number;
   since: number;
-}
-
-export interface PlanProgress {
-  stage: "loading" | "calling" | "parsing" | "persisting" | "done";
-  message: string;
-}
-
-export interface GeneratePlanResult {
-  itemCount: number;
-  droppedCount: number;
-  costUsd: number;
-  project: Project;
-}
-
-export interface AssetProgress {
-  itemId: string;
-  phase:
-    | "starting"
-    | "calling"
-    | "validating"
-    | "saving"
-    | "done"
-    | "cached"
-    | "error";
-  message?: string | null;
-  error?: string | null;
-}
-
-export interface GenerateAllSummary {
-  total: number;
-  succeeded: number;
-  skippedCached: number;
-  failed: number;
-  costUsd: number;
-}
-
-export interface RenderProgress {
-  itemId: string;
-  phase: "starting" | "bundling" | "selecting" | "rendering" | "done" | "error";
-  frame?: number | null;
-  total?: number | null;
-  message?: string | null;
-}
-
-export interface RenderItemResult {
-  outputPath: string;
 }
 
 export const commands = {
@@ -79,16 +31,11 @@ export const commands = {
   updateProject: (project: Project) => invoke<Project>("update_project", { project }),
   deleteProject: (projectId: string) => invoke<void>("delete_project", { projectId }),
 
-  // Themes
+  // Themes (becomes BrandKits in Wave 2)
   listThemes: () => invoke<Theme[]>("list_themes"),
   getTheme: (themeId: string) => invoke<Theme>("get_theme", { themeId }),
   saveTheme: (theme: Theme) => invoke<Theme>("save_theme", { theme }),
   deleteTheme: (themeId: string) => invoke<void>("delete_theme", { themeId }),
-
-  // Presets
-  listPresets: () => invoke<Preset[]>("list_presets"),
-  savePreset: (preset: Preset) => invoke<Preset>("save_preset", { preset }),
-  deletePreset: (presetId: string) => invoke<void>("delete_preset", { presetId }),
 
   // Secrets / API keys — presence-check only, keys stay in Rust.
   hasApiKey: (provider: Provider) => invoke<boolean>("has_api_key", { provider }),
@@ -112,45 +59,7 @@ export const commands = {
   getUsageSince: (sinceMs: number) =>
     invoke<UsageSummary>("get_usage_since", { sinceMs }),
 
-  // Plan generation
-  generatePlan: (projectId: string, planningPrompt: string) =>
-    invoke<GeneratePlanResult>("generate_plan", { projectId, planningPrompt }),
-
-  // Asset generation
-  generateAllAssets: (projectId: string) =>
-    invoke<GenerateAllSummary>("generate_all_assets", { projectId }),
-  generateSingleAsset: (itemId: string) =>
-    invoke<void>("generate_single_asset", { itemId }),
-
-  // Rendering
-  renderItemOverlay: (
-    projectId: string,
-    itemId: string,
-    outputPath?: string,
-    format: "webm" | "prores" = "webm",
-  ) =>
-    invoke<RenderItemResult>("render_item_overlay", {
-      projectId,
-      itemId,
-      outputPath,
-      format,
-    }),
-  renderProjectFull: (
-    projectId: string,
-    outputPath?: string,
-    format: "webm" | "prores" = "prores",
-  ) =>
-    invoke<RenderItemResult>("render_project_full", {
-      projectId,
-      outputPath,
-      format,
-    }),
-
-  // Export
-  writeProjectExport: (projectId: string, filename: string, contents: string) =>
-    invoke<string>("write_project_export", { projectId, filename, contents }),
-  zipProjectExports: (projectId: string, projectName: string) =>
-    invoke<string>("zip_project_exports", { projectId, projectName }),
+  // Reveal in Finder
   revealInFinder: (path: string) => invoke<void>("reveal_in_finder", { path }),
 
   // Logging
@@ -162,23 +71,3 @@ export const commands = {
     message: string,
   ) => invoke<void>("log_from_frontend", { level, target, message }),
 } as const;
-
-/** Subscribes to plan progress events. Returns an unlisten function. */
-export async function onPlanProgress(
-  handler: (p: PlanProgress) => void,
-): Promise<() => void> {
-  const un = await listen<PlanProgress>("plan:progress", (e) => handler(e.payload));
-  return un;
-}
-
-export async function onAssetProgress(
-  handler: (p: AssetProgress) => void,
-): Promise<() => void> {
-  return listen<AssetProgress>("asset:progress", (e) => handler(e.payload));
-}
-
-export async function onRenderProgress(
-  handler: (p: RenderProgress) => void,
-): Promise<() => void> {
-  return listen<RenderProgress>("render:progress", (e) => handler(e.payload));
-}

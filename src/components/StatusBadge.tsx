@@ -2,18 +2,14 @@ import type { ProjectStatus } from "@/types";
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   draft: "bg-status-draft/15 text-status-draft",
-  analyzing: "bg-status-generating/15 text-status-generating",
-  review: "bg-status-review/15 text-status-review",
-  generating: "bg-status-generating/15 text-status-generating",
+  editing: "bg-status-review/15 text-status-review",
   rendered: "bg-status-rendered/15 text-status-rendered",
   exported: "bg-status-exported/15 text-status-exported",
 };
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   draft: "Draft",
-  analyzing: "Analyzing",
-  review: "Review",
-  generating: "Generating",
+  editing: "Editing",
   rendered: "Rendered",
   exported: "Exported",
 };

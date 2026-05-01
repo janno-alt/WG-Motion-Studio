@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Palette, Sparkles, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
+import { LayoutDashboard, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
 
 import { useAppStore } from "@/state/appStore";
-import { usePresetsStore } from "@/state/presetsStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
 import { CommandPalette } from "@/components/CommandPalette";
 import { APP_VERSION } from "@/lib/version";
@@ -17,8 +16,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Projects", icon: LayoutDashboard },
-  { to: "/themes", label: "Themes", icon: Palette },
-  { to: "/presets", label: "Presets", icon: Sparkles },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -26,11 +23,6 @@ const APP_VERSION_LABEL = `v${APP_VERSION} · LOCAL`;
 
 export function AppShell() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
-  const loadPresets = usePresetsStore((s) => s.load);
-
-  useEffect(() => {
-    void loadPresets();
-  }, [loadPresets]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -85,7 +77,7 @@ function SidebarHeader({ collapsed, onToggle }: { collapsed: boolean; onToggle: 
         </div>
         {!collapsed ? (
           <span className="truncate text-sm font-semibold text-text-primary">
-            Motion Studio
+            Video Studio
           </span>
         ) : null}
       </div>

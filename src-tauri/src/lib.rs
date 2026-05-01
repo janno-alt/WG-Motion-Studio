@@ -1,16 +1,11 @@
-mod assets;
-mod claude;
 mod commands;
 mod db;
 mod error;
 mod export;
 mod fs_ops;
-mod gemini;
 mod logger;
 mod paths;
-mod render;
 mod secrets;
-mod svg;
 
 use tauri::Manager;
 
@@ -30,7 +25,6 @@ pub fn run() {
             }
             let mut conn = db::open_or_recover(&db_path)?;
             db::migrations::run(&mut conn)?;
-            db::seed::ensure_default_themes(&conn)?;
             app.manage(db::DbState::new(conn));
             Ok(())
         })
@@ -45,9 +39,6 @@ pub fn run() {
             commands::get_theme,
             commands::save_theme,
             commands::delete_theme,
-            commands::list_presets,
-            commands::save_preset,
-            commands::delete_preset,
             commands::has_api_key,
             commands::set_api_key,
             commands::clear_api_key,
@@ -57,13 +48,6 @@ pub fn run() {
             commands::delete_theme_reference_image,
             commands::read_file_as_string,
             commands::get_usage_since,
-            commands::generate_plan,
-            commands::generate_all_assets,
-            commands::generate_single_asset,
-            commands::render_item_overlay,
-            commands::render_project_full,
-            commands::write_project_export,
-            commands::zip_project_exports,
             commands::reveal_in_finder,
             commands::get_log_path,
             commands::clear_logs,

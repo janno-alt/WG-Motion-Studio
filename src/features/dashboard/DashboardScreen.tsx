@@ -15,8 +15,7 @@ import type { Project, ProjectStatus, Theme } from "@/types";
 const STATUS_FILTERS: { value: ProjectStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "draft", label: "Draft" },
-  { value: "review", label: "Review" },
-  { value: "generating", label: "Generating" },
+  { value: "editing", label: "Editing" },
   { value: "rendered", label: "Rendered" },
   { value: "exported", label: "Exported" },
 ];
@@ -58,11 +57,9 @@ export function DashboardScreen() {
         actions={
           <div className="flex items-center gap-2">
             <LayoutToggle layout={projectListLayout} onChange={setProjectListLayout} />
-            <Link to="/projects/new">
-              <Button variant="primary" size="sm" leadingIcon={<Plus size={14} />}>
-                New project
-              </Button>
-            </Link>
+            <Button variant="primary" size="sm" leadingIcon={<Plus size={14} />} disabled>
+              New project
+            </Button>
           </div>
         }
       />
@@ -184,15 +181,8 @@ function EmptyState({ hasAny }: { hasAny: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <div className="text-sm text-text-secondary">
-        {hasAny ? "No projects match these filters." : "No projects yet."}
+        {hasAny ? "No projects match these filters." : "Project creation is being rebuilt for the NLE."}
       </div>
-      {!hasAny ? (
-        <Link to="/projects/new">
-          <Button variant="primary" size="sm" leadingIcon={<Plus size={14} />}>
-            Create your first one
-          </Button>
-        </Link>
-      ) : null}
     </div>
   );
 }
@@ -216,7 +206,7 @@ function GridView({
 function ProjectCard({ project, theme }: { project: Project; theme: Theme | undefined }) {
   return (
     <Link
-      to={routeForProject(project)}
+      to={`/projects/${project.id}`}
       className="group flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-1 p-3 shadow-panel transition-colors hover:border-accent-primary"
     >
       <div className="flex items-center justify-between">
@@ -233,7 +223,6 @@ function ProjectCard({ project, theme }: { project: Project; theme: Theme | unde
       <div className="flex items-center gap-3 text-2xs text-text-muted">
         <span>{project.videoFormat}</span>
         <span>{formatSeconds(project.videoDuration)}</span>
-        <span>{project.planItems.length} items</span>
       </div>
       <div className="mt-auto text-2xs text-text-muted">
         Updated {formatRelativeTime(project.updatedAt)}
@@ -257,7 +246,6 @@ function ListView({
           <th className="px-4 py-2 font-medium">Client</th>
           <th className="px-4 py-2 font-medium">Format</th>
           <th className="px-4 py-2 font-medium">Duration</th>
-          <th className="px-4 py-2 font-medium">Items</th>
           <th className="px-4 py-2 font-medium">Status</th>
           <th className="px-4 py-2 font-medium">Updated</th>
         </tr>
@@ -268,7 +256,7 @@ function ListView({
           return (
             <tr key={p.id} className="border-t border-border-subtle hover:bg-surface-2">
               <td className="px-4 py-2">
-                <Link to={routeForProject(p)} className="block text-text-primary hover:text-accent-primary">
+                <Link to={`/projects/${p.id}`} className="block text-text-primary hover:text-accent-primary">
                   {p.name}
                 </Link>
               </td>
@@ -285,7 +273,6 @@ function ListView({
               <td className="px-4 py-2 text-xs text-text-secondary">
                 {formatSeconds(p.videoDuration)}
               </td>
-              <td className="px-4 py-2 text-xs text-text-secondary">{p.planItems.length}</td>
               <td className="px-4 py-2">
                 <StatusBadge status={p.status} />
               </td>
@@ -298,14 +285,4 @@ function ListView({
       </tbody>
     </table>
   );
-}
-
-function routeForProject(p: Project): string {
-  switch (p.status) {
-    case "draft":
-    case "analyzing":
-      return `/projects/${p.id}/generating`;
-    default:
-      return `/projects/${p.id}`;
-  }
 }
