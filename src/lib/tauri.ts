@@ -2,9 +2,14 @@ import { invoke as tauriInvoke, Channel } from "@tauri-apps/api/core";
 
 import type {
   Asset,
+  AutoBRollInput,
+  AutoHookInput,
+  BRollResult,
   BrandKit,
   CaptionSegment,
   DownloadProgressEvent,
+  DownloadStockInput,
+  HookSuggestion,
   Project,
   RenderProgressEvent,
   RenderRequest,
@@ -12,6 +17,8 @@ import type {
   SilenceRange,
   Timeline,
   Track,
+  VibeAdjustment,
+  VibeModeInput,
   WhisperModel,
   WhisperModelStatus,
   WhisperProgressEvent,
@@ -21,7 +28,7 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
   return tauriInvoke<T>(cmd, args);
 }
 
-export type Provider = "gemini";
+export type Provider = "gemini" | "pexels" | "pixabay";
 
 export interface AppPaths {
   dbPath: string;
@@ -151,4 +158,12 @@ export const commands = {
       progress,
     });
   },
+
+  // AI (Gemini + stock)
+  autoHook: (input: AutoHookInput) => invoke<HookSuggestion[]>("auto_hook", { input }),
+  autoBrollSearch: (input: AutoBRollInput) =>
+    invoke<BRollResult[]>("auto_broll_search", { input }),
+  downloadStockClip: (input: DownloadStockInput) =>
+    invoke<string>("download_stock_clip", { input }),
+  vibeMode: (input: VibeModeInput) => invoke<VibeAdjustment>("vibe_mode", { input }),
 } as const;
