@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Scissors, ZoomIn, ZoomOut } from "lucide-react";
+import { Scissors, Zap, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useAssetsStore } from "@/state/assetsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+import { AiPanel } from "@/features/ai/AiPanel";
+import { VibeModeDialog } from "@/features/ai/VibeModeDialog";
 import { AssetBrowser } from "@/features/assets/AssetBrowser";
 import { CaptionsPanel } from "@/features/captions/CaptionsPanel";
 import { RenderDialog } from "@/features/render/RenderDialog";
@@ -28,7 +30,8 @@ export function TimelineScreen() {
   const trackPanelRef = useRef<HTMLDivElement>(null);
   const [renderOpen, setRenderOpen] = useState(false);
   const [autoCutOpen, setAutoCutOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"assets" | "captions">("assets");
+  const [vibeOpen, setVibeOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<"assets" | "captions" | "ai">("assets");
   useTimelineHotkeys();
 
   useEffect(() => {
@@ -62,6 +65,14 @@ export function TimelineScreen() {
             <Button
               variant="secondary"
               size="sm"
+              leadingIcon={<Zap size={12} />}
+              onClick={() => setVibeOpen(true)}
+            >
+              Vibe
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               leadingIcon={<Scissors size={12} />}
               onClick={() => setAutoCutOpen(true)}
             >
@@ -86,9 +97,18 @@ export function TimelineScreen() {
             <TabButton active={rightTab === "captions"} onClick={() => setRightTab("captions")}>
               Captions
             </TabButton>
+            <TabButton active={rightTab === "ai"} onClick={() => setRightTab("ai")}>
+              AI
+            </TabButton>
           </div>
           <div className="flex-1 min-h-0">
-            {rightTab === "assets" ? <AssetBrowser /> : <CaptionsPanel />}
+            {rightTab === "assets" ? (
+              <AssetBrowser />
+            ) : rightTab === "captions" ? (
+              <CaptionsPanel />
+            ) : (
+              <AiPanel />
+            )}
           </div>
         </div>
       </div>
@@ -131,6 +151,7 @@ export function TimelineScreen() {
 
       <RenderDialog open={renderOpen} onClose={() => setRenderOpen(false)} />
       <AutoCutDialog open={autoCutOpen} onClose={() => setAutoCutOpen(false)} />
+      <VibeModeDialog open={vibeOpen} onClose={() => setVibeOpen(false)} />
     </div>
   );
 }
