@@ -15,6 +15,7 @@ import { useRendersStore, activeCount } from "@/state/rendersStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useRenderQueueEvents } from "@/features/render/useRenderQueueEvents";
+import { useStartupUpdateCheck } from "@/features/updates/useStartupUpdateCheck";
 import { APP_VERSION } from "@/lib/version";
 
 interface NavItem {
@@ -33,6 +34,7 @@ export function AppShell() {
   const loadRenders = useRendersStore((s) => s.load);
 
   useRenderQueueEvents();
+  useStartupUpdateCheck();
 
   useEffect(() => {
     void loadRenders(null);

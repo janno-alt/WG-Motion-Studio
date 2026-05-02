@@ -9,6 +9,9 @@
     "fs:default",
     "shell:default",
     "shell:allow-open",
+    "updater:default",
+    "process:default",
+    "process:allow-restart",
     {
       "identifier": "shell:allow-execute",
       "allow": [
