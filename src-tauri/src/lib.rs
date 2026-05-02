@@ -1,3 +1,4 @@
+mod ai;
 mod assets;
 mod audio;
 mod commands;
@@ -5,12 +6,14 @@ mod db;
 mod error;
 mod export;
 mod fs_ops;
+mod gemini;
 mod ipc;
 mod logger;
 mod media_probe;
 mod paths;
 mod render;
 mod secrets;
+mod stock;
 mod timeline;
 mod whisper;
 
@@ -86,6 +89,11 @@ pub fn run() {
             whisper::whisper_model_status,
             whisper::whisper_download_model,
             whisper::whisper_transcribe,
+            // AI (Gemini + stock)
+            ai::auto_hook,
+            ai::auto_broll_search,
+            ai::download_stock_clip,
+            ai::vibe_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
