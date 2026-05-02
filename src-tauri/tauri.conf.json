@@ -49,7 +49,7 @@
       "endpoints": [
         "https://github.com/janno-alt/wg-motion-studio/releases/latest/download/latest.json"
       ],
-      "pubkey": "REPLACE_WITH_YOUR_PUBKEY_FROM_TAURI_SIGNER_GENERATE",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5MzM5QURCMkIyNjM5ODYKUldTR09TWXIyNW96YVhLSHlHWEl1WXJzbXhWaldHcHVVeTNnR1p2azNSdTBuUExZY2xWVXNJZDMK",
       "windows": {
         "installMode": "passive"
       }
