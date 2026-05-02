@@ -6,6 +6,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { StatusBadge } from "@/components/StatusBadge";
+import { NewProjectDialog } from "@/features/setup/NewProjectDialog";
 import { useAppStore } from "@/state/appStore";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useBrandKitsStore } from "@/state/brandKitsStore";
@@ -28,6 +29,7 @@ export function DashboardScreen() {
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [clientFilter, setClientFilter] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
+  const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
     void load();
@@ -57,7 +59,12 @@ export function DashboardScreen() {
         actions={
           <div className="flex items-center gap-2">
             <LayoutToggle layout={projectListLayout} onChange={setProjectListLayout} />
-            <Button variant="primary" size="sm" leadingIcon={<Plus size={14} />} disabled>
+            <Button
+              variant="primary"
+              size="sm"
+              leadingIcon={<Plus size={14} />}
+              onClick={() => setNewOpen(true)}
+            >
               New project
             </Button>
           </div>
@@ -97,13 +104,15 @@ export function DashboardScreen() {
             Loading…
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState hasAny={projects.length > 0} />
+          <EmptyState hasAny={projects.length > 0} onCreate={() => setNewOpen(true)} />
         ) : projectListLayout === "grid" ? (
           <GridView projects={filtered} themeById={themeById} />
         ) : (
           <ListView projects={filtered} themeById={themeById} />
         )}
       </div>
+
+      <NewProjectDialog open={newOpen} onClose={() => setNewOpen(false)} />
     </div>
   );
 }
@@ -177,12 +186,17 @@ function FilterChips<T extends string>({
   );
 }
 
-function EmptyState({ hasAny }: { hasAny: boolean }) {
+function EmptyState({ hasAny, onCreate }: { hasAny: boolean; onCreate: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <div className="text-sm text-text-secondary">
-        {hasAny ? "No projects match these filters." : "Project creation is being rebuilt for the NLE."}
+        {hasAny ? "No projects match these filters." : "No projects yet."}
       </div>
+      {!hasAny ? (
+        <Button variant="primary" size="sm" leadingIcon={<Plus size={14} />} onClick={onCreate}>
+          Create your first one
+        </Button>
+      ) : null}
     </div>
   );
 }
