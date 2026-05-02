@@ -85,6 +85,74 @@ const MIGRATIONS: &[(i32, &str)] = &[
         ALTER TABLE plan_items ADD COLUMN generated_at INTEGER;
         "#,
     ),
+    (
+        3,
+        r#"
+        DROP INDEX IF EXISTS idx_plan_items_project;
+        DROP TABLE IF EXISTS plan_items;
+        DROP TABLE IF EXISTS presets;
+
+        CREATE TABLE assets (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          name TEXT NOT NULL,
+          path TEXT NOT NULL,
+          thumbnail_path TEXT,
+          duration_sec REAL,
+          width INTEGER,
+          height INTEGER,
+          fps REAL,
+          audio_channels INTEGER,
+          audio_sample_rate INTEGER,
+          size_bytes INTEGER,
+          imported_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE tracks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          name TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          muted INTEGER NOT NULL DEFAULT 0,
+          hidden INTEGER NOT NULL DEFAULT 0,
+          volume REAL NOT NULL DEFAULT 1.0,
+          pan REAL NOT NULL DEFAULT 0.0
+        );
+
+        CREATE TABLE clips (
+          id TEXT PRIMARY KEY,
+          track_id TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+          asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL,
+          start_sec REAL NOT NULL,
+          duration_sec REAL NOT NULL,
+          in_point_sec REAL NOT NULL DEFAULT 0,
+          out_point_sec REAL NOT NULL,
+          data TEXT,
+          sort_order INTEGER NOT NULL
+        );
+
+        CREATE TABLE renders (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          preset TEXT NOT NULL,
+          output_path TEXT NOT NULL,
+          status TEXT NOT NULL,
+          progress REAL NOT NULL DEFAULT 0,
+          error TEXT,
+          started_at INTEGER,
+          finished_at INTEGER,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX idx_assets_project ON assets(project_id);
+        CREATE INDEX idx_tracks_project ON tracks(project_id, sort_order);
+        CREATE INDEX idx_clips_track ON clips(track_id, sort_order);
+        CREATE INDEX idx_renders_project ON renders(project_id, created_at);
+        "#,
+    ),
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

@@ -1,11 +1,15 @@
+mod assets;
 mod commands;
 mod db;
 mod error;
 mod export;
 mod fs_ops;
+mod ipc;
 mod logger;
+mod media_probe;
 mod paths;
 mod secrets;
+mod timeline;
 
 use tauri::Manager;
 
@@ -52,6 +56,15 @@ pub fn run() {
             commands::get_log_path,
             commands::clear_logs,
             commands::log_from_frontend,
+            // Assets
+            assets::import_asset,
+            assets::list_assets,
+            assets::get_asset,
+            assets::delete_asset,
+            // Timeline
+            timeline::load_timeline,
+            timeline::save_timeline,
+            timeline::create_default_tracks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
