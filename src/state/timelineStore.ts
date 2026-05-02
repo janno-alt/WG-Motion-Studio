@@ -49,6 +49,12 @@ interface TimelineState {
     segments: Array<{ startSec: number; endSec: number; text: string }>,
   ) => void;
 
+  insertGraphicAtPlayhead: (
+    kind: "titleCard" | "lowerThird" | "outro" | "lottie",
+    data: Record<string, unknown>,
+    durationSec?: number,
+  ) => string | null;
+
   applyRippleAutoCut: (clipId: string, silenceRanges: SilenceRange[]) => number;
 
   setTrackVolume: (trackId: string, volume: number) => void;
@@ -287,6 +293,32 @@ export const useTimelineStore = create<TimelineState>()(
         set((s) => ({
           tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, muted } : t)),
         })),
+
+      insertGraphicAtPlayhead: (kind, data, durationSec) => {
+        const state = get();
+        // Graphic clips go on V2 if it exists, otherwise V1, otherwise abort.
+        const targetTrack =
+          state.tracks.find((t) => t.kind === "video" && t.name === "V2") ??
+          state.tracks.find((t) => t.kind === "video");
+        if (!targetTrack) return null;
+        const dur = durationSec ?? (kind === "outro" ? 4 : kind === "lowerThird" ? 5 : 3);
+        const start = state.playheadSec;
+        const id = `clp-${nanoid(10)}`;
+        const newClip: Clip = {
+          id,
+          trackId: targetTrack.id,
+          assetId: null,
+          kind,
+          startSec: start,
+          durationSec: dur,
+          inPointSec: 0,
+          outPointSec: dur,
+          data,
+          sortOrder: state.clips.filter((c) => c.trackId === targetTrack.id).length,
+        };
+        set((s) => ({ clips: [...s.clips, newClip] }));
+        return id;
+      },
 
       addCaptionsFromSegments: (segments) => {
         const captionsTrack = get().tracks.find((t) => t.kind === "captions");

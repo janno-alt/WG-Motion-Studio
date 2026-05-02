@@ -8,6 +8,7 @@ import {
 } from "remotion";
 
 import type { Asset, BrandKit, Clip, Timeline, Track } from "@/types";
+import { LottieClip } from "./components/LottieClip";
 import { LowerThird } from "./components/LowerThird";
 import { Outro } from "./components/Outro";
 import { TitleCard } from "./components/TitleCard";
@@ -109,6 +110,13 @@ function VideoLayer({
           return (
             <Sequence key={clip.id} from={from} durationInFrames={dur}>
               <Outro data={clip.data} brandKit={brandKit} />
+            </Sequence>
+          );
+        }
+        if (clip.kind === "lottie") {
+          return (
+            <Sequence key={clip.id} from={from} durationInFrames={dur}>
+              <LottieClip data={clip.data} />
             </Sequence>
           );
         }

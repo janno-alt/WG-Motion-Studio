@@ -1,13 +1,49 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
-import { useNavigate } from "react-router-dom";
-import { ArrowRight, LayoutDashboard, Palette, Settings } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  ArrowRight,
+  Captions,
+  Film,
+  LayoutDashboard,
+  Palette,
+  Settings,
+  Sparkles,
+  Type,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+
+import { useBrandKitsStore } from "@/state/brandKitsStore";
+import { useProjectsStore } from "@/state/projectsStore";
+import { useTimelineStore } from "@/state/timelineStore";
+import {
+  DEFAULT_LOTTIE,
+  DEFAULT_LOWER_THIRD,
+  DEFAULT_OUTRO,
+  DEFAULT_TITLE_CARD,
+} from "@/types";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const projectId = useTimelineStore((s) => s.projectId);
+  const insertGraphic = useTimelineStore((s) => s.insertGraphicAtPlayhead);
+  const saveSnapshot = useTimelineStore((s) => s.saveSnapshot);
+  const projects = useProjectsStore((s) => s.projects);
+  const brandKits = useBrandKitsStore((s) => s.brandKits);
+
+  const inTimeline = /\/projects\/[^/]+/.test(location.pathname);
+
+  const lottieTemplates = useMemo(() => {
+    if (!projectId) return [];
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return [];
+    const kit = brandKits.find((k) => k.id === project.clientId);
+    return kit?.lottieTemplatePaths ?? [];
+  }, [projectId, projects, brandKits]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -25,6 +61,17 @@ export function CommandPalette() {
     navigate(path);
   };
 
+  const insert = async (kind: "titleCard" | "lowerThird" | "outro" | "lottie", data: Record<string, unknown>) => {
+    setOpen(false);
+    const id = insertGraphic(kind, data);
+    if (!id) {
+      toast.error("Open a project timeline first.");
+      return;
+    }
+    await saveSnapshot();
+    toast.success(`${labelFor(kind)} inserted at playhead.`);
+  };
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
@@ -40,11 +87,42 @@ export function CommandPalette() {
               <Command.Empty className="py-6 text-center text-xs text-text-muted">
                 No matches.
               </Command.Empty>
+
               <Command.Group heading="Navigate">
                 <Entry icon={LayoutDashboard} label="Projects" onSelect={() => go("/dashboard")} />
                 <Entry icon={Palette} label="Brand kits" onSelect={() => go("/brand-kits")} />
                 <Entry icon={Settings} label="Settings" onSelect={() => go("/settings")} />
               </Command.Group>
+
+              {inTimeline ? (
+                <Command.Group heading="Insert">
+                  <Entry
+                    icon={Type}
+                    label="Insert title card"
+                    onSelect={() => void insert("titleCard", { ...DEFAULT_TITLE_CARD })}
+                  />
+                  <Entry
+                    icon={Captions}
+                    label="Insert lower third"
+                    onSelect={() => void insert("lowerThird", { ...DEFAULT_LOWER_THIRD })}
+                  />
+                  <Entry
+                    icon={Film}
+                    label="Insert outro"
+                    onSelect={() => void insert("outro", { ...DEFAULT_OUTRO })}
+                  />
+                  {lottieTemplates.map((path) => (
+                    <Entry
+                      key={path}
+                      icon={Sparkles}
+                      label={`Insert Lottie · ${path.split("/").pop()}`}
+                      onSelect={() =>
+                        void insert("lottie", { ...DEFAULT_LOTTIE, templatePath: path })
+                      }
+                    />
+                  ))}
+                </Command.Group>
+              ) : null}
             </Command.List>
           </Command>
         </Dialog.Content>
@@ -75,4 +153,17 @@ function Entry({
       <ArrowRight size={12} className="text-text-muted opacity-0 group-aria-selected:opacity-100" />
     </Command.Item>
   );
+}
+
+function labelFor(kind: "titleCard" | "lowerThird" | "outro" | "lottie"): string {
+  switch (kind) {
+    case "titleCard":
+      return "Title card";
+    case "lowerThird":
+      return "Lower third";
+    case "outro":
+      return "Outro";
+    case "lottie":
+      return "Lottie clip";
+  }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Scissors, Zap, ZoomIn, ZoomOut } from "lucide-react";
+import { Scissors, Sliders, Zap, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -14,6 +14,7 @@ import { RenderDialog } from "@/features/render/RenderDialog";
 import { useTimelineHotkeys } from "./hooks/useTimelineHotkeys";
 import { AutoCutDialog } from "./AutoCutDialog";
 import { PreviewPane } from "./PreviewPane";
+import { TheatreStudio } from "./TheatreStudio";
 import { TimelineRuler } from "./TimelineRuler";
 import { Track } from "./Track";
 
@@ -31,6 +32,7 @@ export function TimelineScreen() {
   const [renderOpen, setRenderOpen] = useState(false);
   const [autoCutOpen, setAutoCutOpen] = useState(false);
   const [vibeOpen, setVibeOpen] = useState(false);
+  const [proMode, setProMode] = useState(false);
   const [rightTab, setRightTab] = useState<"assets" | "captions" | "ai">("assets");
   useTimelineHotkeys();
 
@@ -62,6 +64,15 @@ export function TimelineScreen() {
         title="Timeline"
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant={proMode ? "primary" : "secondary"}
+              size="sm"
+              leadingIcon={<Sliders size={12} />}
+              onClick={() => setProMode((v) => !v)}
+              title="Lazy-loads Theatre.js studio"
+            >
+              Pro mode
+            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -152,6 +163,7 @@ export function TimelineScreen() {
       <RenderDialog open={renderOpen} onClose={() => setRenderOpen(false)} />
       <AutoCutDialog open={autoCutOpen} onClose={() => setAutoCutOpen(false)} />
       <VibeModeDialog open={vibeOpen} onClose={() => setVibeOpen(false)} />
+      <TheatreStudio enabled={proMode} onClose={() => setProMode(false)} />
     </div>
   );
 }

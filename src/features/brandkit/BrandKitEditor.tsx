@@ -220,6 +220,13 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
         </div>
       </Section>
 
+      <Section title="Lottie templates">
+        <LottieTemplateList
+          paths={draft.lottieTemplatePaths}
+          onChange={(v) => patch("lottieTemplatePaths", v)}
+        />
+      </Section>
+
       <Section title="Music styles">
         <TagInput
           values={draft.musicStyles}
@@ -247,6 +254,63 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
         danger
         onConfirm={() => void removeKit()}
       />
+    </div>
+  );
+}
+
+function LottieTemplateList({
+  paths,
+  onChange,
+}: {
+  paths: string[];
+  onChange: (paths: string[]) => void;
+}) {
+  const pickFiles = async () => {
+    const picked = await open({
+      multiple: true,
+      filters: [{ name: "Lottie", extensions: ["json"] }],
+    });
+    if (!picked) return;
+    const arr = Array.isArray(picked) ? picked : [picked];
+    onChange([...paths, ...arr.filter((p) => typeof p === "string" && !paths.includes(p))]);
+  };
+
+  return (
+    <div className="space-y-2">
+      {paths.length === 0 ? (
+        <div className="rounded-default border border-dashed border-border-subtle bg-surface-0 px-3 py-2 text-2xs text-text-muted">
+          No Lottie templates yet. Add JSON files to make them available as
+          Insert → Lottie clips on the timeline.
+        </div>
+      ) : (
+        <ul className="space-y-1">
+          {paths.map((p, i) => (
+            <li
+              key={p}
+              className="flex items-center justify-between gap-2 rounded-default border border-border-subtle bg-surface-0 px-2 py-1.5"
+            >
+              <span className="truncate font-mono text-2xs text-text-secondary" title={p}>
+                {p.split("/").pop()}
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange(paths.filter((_, j) => j !== i))}
+                className="text-2xs text-text-muted hover:text-danger"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        leadingIcon={<ImagePlus size={12} />}
+        onClick={() => void pickFiles()}
+      >
+        Add Lottie JSON
+      </Button>
     </div>
   );
 }
