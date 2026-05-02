@@ -8,9 +8,9 @@ import { Input } from "@/components/Input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAppStore } from "@/state/appStore";
 import { useProjectsStore } from "@/state/projectsStore";
-import { useThemesStore } from "@/state/themesStore";
+import { useBrandKitsStore } from "@/state/brandKitsStore";
 import { formatRelativeTime, formatSeconds } from "@/lib/format";
-import type { Project, ProjectStatus, Theme } from "@/types";
+import type { BrandKit, Project, ProjectStatus } from "@/types";
 
 const STATUS_FILTERS: { value: ProjectStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -22,7 +22,7 @@ const STATUS_FILTERS: { value: ProjectStatus | "all"; label: string }[] = [
 
 export function DashboardScreen() {
   const { projects, loading, load } = useProjectsStore();
-  const { themes, load: loadThemes } = useThemesStore();
+  const { brandKits: themes, load: loadBrandKits } = useBrandKitsStore();
   const { projectListLayout, setProjectListLayout } = useAppStore();
 
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
@@ -31,11 +31,11 @@ export function DashboardScreen() {
 
   useEffect(() => {
     void load();
-    void loadThemes();
-  }, [load, loadThemes]);
+    void loadBrandKits();
+  }, [load, loadBrandKits]);
 
   const themeById = useMemo(() => {
-    const m = new Map<string, Theme>();
+    const m = new Map<string, BrandKit>();
     for (const t of themes) m.set(t.id, t);
     return m;
   }, [themes]);
@@ -192,7 +192,7 @@ function GridView({
   themeById,
 }: {
   projects: Project[];
-  themeById: Map<string, Theme>;
+  themeById: Map<string, BrandKit>;
 }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 p-4">
@@ -203,7 +203,7 @@ function GridView({
   );
 }
 
-function ProjectCard({ project, theme }: { project: Project; theme: Theme | undefined }) {
+function ProjectCard({ project, theme }: { project: Project; theme: BrandKit | undefined }) {
   return (
     <Link
       to={`/projects/${project.id}`}
@@ -236,7 +236,7 @@ function ListView({
   themeById,
 }: {
   projects: Project[];
-  themeById: Map<string, Theme>;
+  themeById: Map<string, BrandKit>;
 }) {
   return (
     <table className="w-full text-sm">

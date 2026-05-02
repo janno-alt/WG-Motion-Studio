@@ -193,61 +193,118 @@ pub fn delete_project(db: State<'_, DbState>, project_id: String) -> AppResult<(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Themes (renamed to BrandKits in Wave 2)                            */
+/*  BrandKits (renamed from `themes` in migration 004)                 */
 /* ------------------------------------------------------------------ */
 
 #[tauri::command]
-pub fn list_themes(db: State<'_, DbState>) -> AppResult<Vec<Value>> {
+pub fn list_brand_kits(db: State<'_, DbState>) -> AppResult<Vec<Value>> {
     let conn = db.conn.lock().unwrap();
-    let mut stmt = conn.prepare("SELECT data FROM themes ORDER BY updated_at DESC")?;
-    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut stmt = conn.prepare(
+        "SELECT data, client_name, logo_path FROM brand_kits ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
+    })?;
     let mut out = Vec::new();
-    for s in rows {
-        out.push(serde_json::from_str::<Value>(&s?)?);
+    for r in rows {
+        let (data, client_name, logo_path) = r?;
+        let mut value: Value = serde_json::from_str(&data)?;
+        if let Some(obj) = value.as_object_mut() {
+            if obj.get("clientName").is_none() {
+                obj.insert(
+                    "clientName".into(),
+                    client_name.map(Value::String).unwrap_or(Value::Null),
+                );
+            }
+            if obj.get("logoPath").is_none() {
+                obj.insert(
+                    "logoPath".into(),
+                    logo_path.map(Value::String).unwrap_or(Value::Null),
+                );
+            }
+        }
+        out.push(value);
     }
     Ok(out)
 }
 
 #[tauri::command]
-pub fn get_theme(db: State<'_, DbState>, theme_id: String) -> AppResult<Value> {
+pub fn get_brand_kit(db: State<'_, DbState>, brand_kit_id: String) -> AppResult<Value> {
     let conn = db.conn.lock().unwrap();
-    let s: String = conn
+    let (data, client_name, logo_path): (String, Option<String>, Option<String>) = conn
         .query_row(
-            "SELECT data FROM themes WHERE id = ?1",
-            params![theme_id],
-            |row| row.get(0),
+            "SELECT data, client_name, logo_path FROM brand_kits WHERE id = ?1",
+            params![brand_kit_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(format!("theme:{theme_id}")),
+            rusqlite::Error::QueryReturnedNoRows => {
+                AppError::NotFound(format!("brand_kit:{brand_kit_id}"))
+            }
             other => other.into(),
         })?;
-    Ok(serde_json::from_str(&s)?)
+    let mut value: Value = serde_json::from_str(&data)?;
+    if let Some(obj) = value.as_object_mut() {
+        if obj.get("clientName").is_none() {
+            obj.insert(
+                "clientName".into(),
+                client_name.map(Value::String).unwrap_or(Value::Null),
+            );
+        }
+        if obj.get("logoPath").is_none() {
+            obj.insert(
+                "logoPath".into(),
+                logo_path.map(Value::String).unwrap_or(Value::Null),
+            );
+        }
+    }
+    Ok(value)
 }
 
 #[tauri::command]
-pub fn save_theme(db: State<'_, DbState>, theme: Value) -> AppResult<Value> {
-    let id = theme.get("id").and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Other("theme.id missing".into()))?
+pub fn save_brand_kit(db: State<'_, DbState>, brand_kit: Value) -> AppResult<Value> {
+    let id = brand_kit
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Other("brand_kit.id missing".into()))?
         .to_string();
-    let name = theme.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let name = brand_kit
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let client_name = brand_kit
+        .get("clientName")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let logo_path = brand_kit
+        .get("logoPath")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let now = now_ms();
-    let data = serde_json::to_string(&theme)?;
+    let data = serde_json::to_string(&brand_kit)?;
     let conn = db.conn.lock().unwrap();
     conn.execute(
-        "INSERT INTO themes (id, name, data, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?4)
+        "INSERT INTO brand_kits (id, name, data, client_name, logo_path, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name,
                                        data = excluded.data,
+                                       client_name = excluded.client_name,
+                                       logo_path = excluded.logo_path,
                                        updated_at = excluded.updated_at",
-        params![id, name, data, now],
+        params![id, name, data, client_name, logo_path, now],
     )?;
-    Ok(theme)
+    Ok(brand_kit)
 }
 
 #[tauri::command]
-pub fn delete_theme(db: State<'_, DbState>, theme_id: String) -> AppResult<()> {
+pub fn delete_brand_kit(db: State<'_, DbState>, brand_kit_id: String) -> AppResult<()> {
     let conn = db.conn.lock().unwrap();
-    conn.execute("DELETE FROM themes WHERE id = ?1", params![theme_id])?;
+    conn.execute("DELETE FROM brand_kits WHERE id = ?1", params![brand_kit_id])?;
     Ok(())
 }
 
@@ -291,18 +348,28 @@ pub fn copy_srt_into_project(
 }
 
 #[tauri::command]
-pub fn save_theme_reference_image(
+pub fn save_brand_kit_logo(
     app: AppHandle,
-    theme_id: String,
+    brand_kit_id: String,
     source_path: String,
 ) -> AppResult<String> {
-    let p = fs_ops::save_theme_reference(&app, &theme_id, &PathBuf::from(&source_path))?;
+    let p = fs_ops::save_brand_kit_asset(&app, &brand_kit_id, &PathBuf::from(&source_path), "logo")?;
     Ok(p.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-pub fn delete_theme_reference_image(path: String) -> AppResult<()> {
-    fs_ops::delete_theme_reference(&PathBuf::from(path))
+pub fn save_brand_kit_reference(
+    app: AppHandle,
+    brand_kit_id: String,
+    source_path: String,
+) -> AppResult<String> {
+    let p = fs_ops::save_brand_kit_asset(&app, &brand_kit_id, &PathBuf::from(&source_path), "ref")?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn delete_brand_kit_asset(path: String) -> AppResult<()> {
+    fs_ops::delete_brand_kit_asset(&PathBuf::from(path))
 }
 
 #[tauri::command]

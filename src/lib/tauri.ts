@@ -2,12 +2,12 @@ import { invoke as tauriInvoke, Channel } from "@tauri-apps/api/core";
 
 import type {
   Asset,
+  BrandKit,
   CaptionSegment,
   DownloadProgressEvent,
   Project,
   RenderProgressEvent,
   RenderRequest,
-  Theme,
   Timeline,
   Track,
   WhisperModel,
@@ -43,11 +43,20 @@ export const commands = {
   updateProject: (project: Project) => invoke<Project>("update_project", { project }),
   deleteProject: (projectId: string) => invoke<void>("delete_project", { projectId }),
 
-  // Themes (becomes BrandKits in Wave 2)
-  listThemes: () => invoke<Theme[]>("list_themes"),
-  getTheme: (themeId: string) => invoke<Theme>("get_theme", { themeId }),
-  saveTheme: (theme: Theme) => invoke<Theme>("save_theme", { theme }),
-  deleteTheme: (themeId: string) => invoke<void>("delete_theme", { themeId }),
+  // BrandKits (renamed from Themes in Wave 2)
+  listBrandKits: () => invoke<BrandKit[]>("list_brand_kits"),
+  getBrandKit: (brandKitId: string) =>
+    invoke<BrandKit>("get_brand_kit", { brandKitId }),
+  saveBrandKit: (brandKit: BrandKit) =>
+    invoke<BrandKit>("save_brand_kit", { brandKit }),
+  deleteBrandKit: (brandKitId: string) =>
+    invoke<void>("delete_brand_kit", { brandKitId }),
+  saveBrandKitLogo: (brandKitId: string, sourcePath: string) =>
+    invoke<string>("save_brand_kit_logo", { brandKitId, sourcePath }),
+  saveBrandKitReference: (brandKitId: string, sourcePath: string) =>
+    invoke<string>("save_brand_kit_reference", { brandKitId, sourcePath }),
+  deleteBrandKitAsset: (path: string) =>
+    invoke<void>("delete_brand_kit_asset", { path }),
 
   // Secrets
   hasApiKey: (provider: Provider) => invoke<boolean>("has_api_key", { provider }),
@@ -60,10 +69,6 @@ export const commands = {
     invoke<string>("ensure_project_dir", { projectId }),
   copySrtIntoProject: (projectId: string, sourcePath: string) =>
     invoke<string>("copy_srt_into_project", { projectId, sourcePath }),
-  saveThemeReferenceImage: (themeId: string, sourcePath: string) =>
-    invoke<string>("save_theme_reference_image", { themeId, sourcePath }),
-  deleteThemeReferenceImage: (path: string) =>
-    invoke<void>("delete_theme_reference_image", { path }),
   readFileAsString: (path: string) => invoke<string>("read_file_as_string", { path }),
 
   // Usage

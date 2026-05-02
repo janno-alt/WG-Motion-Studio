@@ -41,20 +41,27 @@ pub fn run() {
             commands::create_project,
             commands::update_project,
             commands::delete_project,
-            commands::list_themes,
-            commands::get_theme,
-            commands::save_theme,
-            commands::delete_theme,
+            // BrandKits (formerly Themes)
+            commands::list_brand_kits,
+            commands::get_brand_kit,
+            commands::save_brand_kit,
+            commands::delete_brand_kit,
+            commands::save_brand_kit_logo,
+            commands::save_brand_kit_reference,
+            commands::delete_brand_kit_asset,
+            // Secrets
             commands::has_api_key,
             commands::set_api_key,
             commands::clear_api_key,
+            // FS / IO
             commands::ensure_project_dir,
             commands::copy_srt_into_project,
-            commands::save_theme_reference_image,
-            commands::delete_theme_reference_image,
             commands::read_file_as_string,
+            // Usage
             commands::get_usage_since,
+            // Reveal
             commands::reveal_in_finder,
+            // Logging
             commands::get_log_path,
             commands::clear_logs,
             commands::log_from_frontend,

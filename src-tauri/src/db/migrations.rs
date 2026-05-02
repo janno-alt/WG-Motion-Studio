@@ -153,6 +153,27 @@ const MIGRATIONS: &[(i32, &str)] = &[
         CREATE INDEX idx_renders_project ON renders(project_id, created_at);
         "#,
     ),
+    (
+        4,
+        r#"
+        ALTER TABLE themes RENAME TO brand_kits;
+        ALTER TABLE brand_kits ADD COLUMN client_name TEXT;
+        ALTER TABLE brand_kits ADD COLUMN logo_path TEXT;
+
+        CREATE TABLE asset_tags (
+          asset_id TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          tag TEXT NOT NULL,
+          PRIMARY KEY (asset_id, tag)
+        );
+        CREATE INDEX idx_asset_tags_tag ON asset_tags(tag);
+
+        CREATE VIRTUAL TABLE assets_fts USING fts5(
+          name,
+          tags,
+          content=''
+        );
+        "#,
+    ),
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {

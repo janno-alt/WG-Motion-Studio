@@ -43,40 +43,40 @@ pub fn read_srt(handle: &AppHandle, project_id: &str) -> AppResult<String> {
         .map_err(|e| AppError::Other(format!("read srt {}: {e}", p.display())))
 }
 
-/// Theme reference-image directory: stable across projects, in app config dir.
-pub fn theme_refs_dir(handle: &AppHandle, theme_id: &str) -> AppResult<PathBuf> {
-    let dir = paths::config_dir(handle)?.join("themes").join(theme_id);
+/// BrandKit asset directory (logo, reference images): stable across projects.
+pub fn brand_kit_assets_dir(handle: &AppHandle, brand_kit_id: &str) -> AppResult<PathBuf> {
+    let dir = paths::config_dir(handle)?.join("brand_kits").join(brand_kit_id);
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
-pub fn save_theme_reference(
+pub fn save_brand_kit_asset(
     handle: &AppHandle,
-    theme_id: &str,
+    brand_kit_id: &str,
     source: &Path,
+    prefix: &str,
 ) -> AppResult<PathBuf> {
-    let dir = theme_refs_dir(handle, theme_id)?;
+    let dir = brand_kit_assets_dir(handle, brand_kit_id)?;
     let ext = source
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("png")
         .to_string();
-    // next free number
     let mut n = 1;
     loop {
-        let candidate = dir.join(format!("ref-{n}.{ext}"));
+        let candidate = dir.join(format!("{prefix}-{n}.{ext}"));
         if !candidate.exists() {
             fs::copy(source, &candidate)?;
             return Ok(candidate);
         }
         n += 1;
         if n > 9999 {
-            return Err(AppError::Other("too many reference images".into()));
+            return Err(AppError::Other("too many brand kit assets".into()));
         }
     }
 }
 
-pub fn delete_theme_reference(path: &Path) -> AppResult<()> {
+pub fn delete_brand_kit_asset(path: &Path) -> AppResult<()> {
     if path.exists() {
         fs::remove_file(path)?;
     }
