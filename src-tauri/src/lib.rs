@@ -12,6 +12,7 @@ mod logger;
 mod media_probe;
 mod paths;
 mod render;
+mod render_queue;
 mod secrets;
 mod stock;
 mod timeline;
@@ -35,7 +36,10 @@ pub fn run() {
             }
             let mut conn = db::open_or_recover(&db_path)?;
             db::migrations::run(&mut conn)?;
+            render_queue::recovery_sweep(&conn)?;
             app.manage(db::DbState::new(conn));
+            let queue = render_queue::RenderQueue::spawn(handle.clone());
+            app.manage(queue);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -85,6 +89,10 @@ pub fn run() {
             timeline::create_default_tracks,
             // Render
             render::render_timeline,
+            render_queue::enqueue_render,
+            render_queue::list_renders,
+            render_queue::cancel_render,
+            render_queue::delete_render,
             // Whisper
             whisper::whisper_model_status,
             whisper::whisper_download_model,
