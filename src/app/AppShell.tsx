@@ -1,29 +1,42 @@
 import { useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Palette, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
+import {
+  LayoutDashboard,
+  ListVideo,
+  Palette,
+  PanelLeft,
+  PanelLeftClose,
+  Settings,
+} from "lucide-react";
 
 import { useAppStore } from "@/state/appStore";
+import { useRendersStore, activeCount } from "@/state/rendersStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
 import { CommandPalette } from "@/components/CommandPalette";
+import { useRenderQueueEvents } from "@/features/render/useRenderQueueEvents";
 import { APP_VERSION } from "@/lib/version";
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Optional callback returning a small badge string. */
+  badge?: () => number;
 }
-
-const NAV_ITEMS: NavItem[] = [
-  { to: "/dashboard", label: "Projects", icon: LayoutDashboard },
-  { to: "/brand-kits", label: "Brand kits", icon: Palette },
-  { to: "/settings", label: "Settings", icon: Settings },
-];
 
 const APP_VERSION_LABEL = `v${APP_VERSION} · LOCAL`;
 
 export function AppShell() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const renders = useRendersStore((s) => s.renders);
+  const loadRenders = useRendersStore((s) => s.load);
+
+  useRenderQueueEvents();
+
+  useEffect(() => {
+    void loadRenders(null);
+  }, [loadRenders]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -37,6 +50,19 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleSidebar]);
 
+  const renderBadge = activeCount(renders);
+  const navItems: NavItem[] = [
+    { to: "/dashboard", label: "Projects", icon: LayoutDashboard },
+    { to: "/brand-kits", label: "Brand kits", icon: Palette },
+    {
+      to: "/renders",
+      label: "Renders",
+      icon: ListVideo,
+      badge: () => renderBadge,
+    },
+    { to: "/settings", label: "Settings", icon: Settings },
+  ];
+
   return (
     <div className="flex h-full w-full bg-surface-0 text-text-primary">
       <aside
@@ -48,7 +74,7 @@ export function AppShell() {
       >
         <SidebarHeader collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <nav className="flex flex-1 flex-col gap-0.5 overflow-hidden px-2 py-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <SidebarNavItem key={item.to} item={item} collapsed={sidebarCollapsed} />
           ))}
         </nav>
@@ -96,13 +122,14 @@ function SidebarHeader({ collapsed, onToggle }: { collapsed: boolean; onToggle: 
 
 function SidebarNavItem({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
+  const badgeCount = item.badge?.() ?? 0;
   return (
     <NavLink
       to={item.to}
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         [
-          "group flex h-8 items-center gap-2 rounded-default px-2 text-sm transition-colors",
+          "group relative flex h-8 items-center gap-2 rounded-default px-2 text-sm transition-colors",
           collapsed ? "justify-center" : "",
           isActive
             ? "bg-surface-3 text-text-primary"
@@ -117,6 +144,16 @@ function SidebarNavItem({ item, collapsed }: { item: NavItem; collapsed: boolean
             className={isActive ? "text-accent-primary" : undefined}
           />
           {!collapsed ? <span className="truncate">{item.label}</span> : null}
+          {badgeCount > 0 ? (
+            <span
+              className={[
+                "ml-auto rounded-full bg-accent-primary px-1.5 py-0 font-mono text-2xs font-medium text-surface-0",
+                collapsed ? "absolute -right-0.5 -top-0.5 ml-0" : "",
+              ].join(" ")}
+            >
+              {badgeCount}
+            </span>
+          ) : null}
         </>
       )}
     </NavLink>

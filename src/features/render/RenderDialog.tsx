@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { X } from "lucide-react";
@@ -9,12 +10,13 @@ import { commands } from "@/lib/tauri";
 import {
   REEL_9_16,
   type RenderBrandKit,
-  type RenderProgressEvent,
+  type RenderPreset,
 } from "@/types";
 import { useAssetsStore } from "@/state/assetsStore";
 import { useBrandKitsStore } from "@/state/brandKitsStore";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+import { RenderPresetPicker } from "./RenderPresetPicker";
 
 interface Props {
   open: boolean;
@@ -28,12 +30,12 @@ export function RenderDialog({ open, onClose }: Props) {
   const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
   const projects = useProjectsStore((s) => s.projects);
   const brandKits = useBrandKitsStore((s) => s.brandKits);
+  const navigate = useNavigate();
 
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ frame: number; total: number | null } | null>(null);
-  const [outputPath, setOutputPath] = useState<string | null>(null);
+  const [preset, setPreset] = useState<RenderPreset>(REEL_9_16);
+  const [submitting, setSubmitting] = useState(false);
 
-  const start = async () => {
+  const enqueue = async () => {
     if (!projectId) return;
     if (clips.length === 0) {
       toast.error("Empty timeline.");
@@ -41,12 +43,8 @@ export function RenderDialog({ open, onClose }: Props) {
     }
     const renderId = `r-${nanoid(8)}`;
     const projectsDirInfo = await commands.getAppPaths();
-    const outDir = `${projectsDirInfo.projectsDir}/${projectId}`;
-    const outPath = `${outDir}/${renderId}.mp4`;
-
-    setRunning(true);
-    setProgress({ frame: 0, total: null });
-    setOutputPath(null);
+    const ext = preset.id === "prores-master" ? "mov" : "mp4";
+    const outPath = `${projectsDirInfo.projectsDir}/${projectId}/${renderId}-${preset.id}.${ext}`;
 
     const project = projects.find((p) => p.id === projectId);
     const fullKit = project ? brandKits.find((k) => k.id === project.clientId) : undefined;
@@ -61,115 +59,60 @@ export function RenderDialog({ open, onClose }: Props) {
         }
       : null;
 
+    setSubmitting(true);
     try {
-      const finalPath = await commands.renderTimeline(
-        {
-          renderId,
-          projectId,
-          timeline: { projectId, tracks, clips },
-          assets,
-          preset: REEL_9_16,
-          outputPath: outPath,
-          brandKit,
-        },
-        (e: RenderProgressEvent) => {
-          if (e.stage === "encoding") {
-            setProgress({ frame: e.frame, total: e.totalFrames });
-          } else if (e.stage === "done") {
-            setProgress(null);
-            setOutputPath(e.outputPath);
-          } else if (e.stage === "error") {
-            toast.error(`Render error: ${e.message}`);
-          }
-        },
-      );
-      toast.success("Render complete.");
-      setOutputPath(finalPath);
+      await commands.enqueueRender({
+        renderId,
+        projectId,
+        timeline: { projectId, tracks, clips },
+        assets,
+        preset,
+        outputPath: outPath,
+        brandKit,
+      });
+      toast.success(`Queued ${preset.id} render.`);
+      onClose();
+      navigate("/renders");
     } catch (err) {
-      toast.error(`Render failed: ${String(err)}`);
+      toast.error(`Enqueue failed: ${String(err)}`);
     } finally {
-      setRunning(false);
+      setSubmitting(false);
     }
   };
 
-  const reveal = async () => {
-    if (!outputPath) return;
-    await commands.revealInFinder(outputPath);
-  };
-
-  const percent =
-    progress && progress.total ? Math.min(100, Math.round((progress.frame / progress.total) * 100)) : null;
-
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => (!v && !running ? onClose() : null)}>
+    <Dialog.Root open={open} onOpenChange={(v) => (!v && !submitting ? onClose() : null)}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-surface-0/70 backdrop-blur-[2px]" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-card border border-border bg-surface-1 p-4 shadow-popover">
           <div className="mb-3 flex items-center justify-between">
             <Dialog.Title className="text-sm font-semibold text-text-primary">
-              Render — Reel 9:16
+              Queue render
             </Dialog.Title>
             <button
               type="button"
-              onClick={() => (!running ? onClose() : null)}
-              className="text-text-muted hover:text-text-primary disabled:opacity-30"
-              disabled={running}
+              onClick={onClose}
+              className="text-text-muted hover:text-text-primary"
+              disabled={submitting}
             >
               <X size={14} />
             </button>
           </div>
-          <div className="space-y-2 text-xs text-text-secondary">
-            <div className="flex justify-between">
-              <span>Resolution</span>
-              <span className="font-mono">
-                {REEL_9_16.width}×{REEL_9_16.height} @ {REEL_9_16.fps}fps
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Codec</span>
-              <span className="font-mono">{REEL_9_16.videoCodec} · {REEL_9_16.videoBitrate}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Audio</span>
-              <span className="font-mono">{REEL_9_16.audioCodec} · {REEL_9_16.audioBitrate}</span>
-            </div>
-          </div>
 
-          {progress ? (
-            <div className="mt-4">
-              <div className="mb-1 flex justify-between text-2xs text-text-muted">
-                <span>{progress.frame.toLocaleString()} frames{progress.total ? ` / ${progress.total.toLocaleString()}` : ""}</span>
-                <span>{percent != null ? `${percent}%` : "…"}</span>
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-surface-3">
-                <div
-                  className="h-full bg-accent-primary transition-[width] duration-200"
-                  style={{ width: percent != null ? `${percent}%` : "10%" }}
-                />
-              </div>
-            </div>
-          ) : null}
+          <Dialog.Description className="mb-3 text-2xs text-text-muted">
+            Renders execute in order on a single FFmpeg worker. Watch progress
+            on the Renders screen; queue more from here while one is running.
+          </Dialog.Description>
 
-          {outputPath ? (
-            <div className="mt-4 space-y-2">
-              <div className="break-all rounded-default bg-surface-2 px-2 py-1.5 font-mono text-2xs text-text-muted">
-                {outputPath}
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => void reveal()}>
-                Reveal in Finder
-              </Button>
-            </div>
-          ) : null}
+          <RenderPresetPicker value={preset} onChange={setPreset} />
 
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose} disabled={running}>
-              {outputPath ? "Close" : "Cancel"}
+            <Button variant="secondary" size="sm" onClick={onClose} disabled={submitting}>
+              Cancel
             </Button>
-            {!outputPath ? (
-              <Button variant="primary" size="sm" onClick={() => void start()} disabled={running}>
-                {running ? "Rendering…" : "Start render"}
-              </Button>
-            ) : null}
+            <Button variant="primary" size="sm" onClick={() => void enqueue()} disabled={submitting}>
+              {submitting ? "Queueing…" : "Queue render"}
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

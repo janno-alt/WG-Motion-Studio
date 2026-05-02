@@ -43,6 +43,36 @@ pub fn reel_9_16() -> RenderPreset {
     }
 }
 
+#[allow(dead_code)]
+pub fn youtube_16_9() -> RenderPreset {
+    RenderPreset {
+        id: "youtube-16-9".into(),
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        video_codec: "h264_videotoolbox".into(),
+        video_bitrate: "12M".into(),
+        audio_codec: "aac".into(),
+        audio_bitrate: "192k".into(),
+        loudnorm_lufs: Some(LoudnormTarget::YOUTUBE.integrated_lufs),
+    }
+}
+
+#[allow(dead_code)]
+pub fn prores_master() -> RenderPreset {
+    RenderPreset {
+        id: "prores-master".into(),
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        video_codec: "prores_videotoolbox".into(),
+        video_bitrate: "0".into(),
+        audio_codec: "pcm_s16le".into(),
+        audio_bitrate: "1536k".into(),
+        loudnorm_lufs: None,
+    }
+}
+
 /// Subset of BrandKit the renderer needs. Frontend extracts this from the
 /// full BrandKit before issuing the render command.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -419,16 +449,27 @@ pub fn build_render_plan(req: &RenderRequest) -> AppResult<RenderPlan> {
 
     args.push("-c:v".into());
     args.push(preset.video_codec.clone());
-    args.push("-b:v".into());
-    args.push(preset.video_bitrate.clone());
+    let is_prores = preset.video_codec.contains("prores");
+    if is_prores {
+        // ProRes: profile 4 = 4444 (alpha-capable, master quality). Skip
+        // -b:v since ProRes is profile-driven, not bitrate-driven. Use
+        // yuv422p10le since 4444 supports 10-bit + alpha.
+        args.push("-profile:v".into());
+        args.push("4".into());
+    } else {
+        args.push("-b:v".into());
+        args.push(preset.video_bitrate.clone());
+    }
     args.push("-c:a".into());
     args.push(preset.audio_codec.clone());
-    args.push("-b:a".into());
-    args.push(preset.audio_bitrate.clone());
+    if !is_prores {
+        args.push("-b:a".into());
+        args.push(preset.audio_bitrate.clone());
+    }
     args.push("-r".into());
     args.push(preset.fps.to_string());
     args.push("-pix_fmt".into());
-    args.push("yuv420p".into());
+    args.push(if is_prores { "yuv422p10le".into() } else { "yuv420p".into() });
 
     if total_duration_sec > 0.0 {
         args.push("-t".into());

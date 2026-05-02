@@ -13,6 +13,7 @@ import type {
   Project,
   RenderProgressEvent,
   RenderRequest,
+  RenderRow,
   SilenceParams,
   SilenceRange,
   Timeline,
@@ -131,6 +132,16 @@ export const commands = {
     progress.onmessage = onProgress;
     return invoke<string>("render_timeline", { request, progress });
   },
+
+  // Render queue
+  enqueueRender: (request: RenderRequest) =>
+    invoke<string>("enqueue_render", { request }),
+  listRenders: (projectId: string | null) =>
+    invoke<RenderRow[]>("list_renders", { projectId }),
+  cancelRender: (renderId: string) =>
+    invoke<void>("cancel_render", { renderId }),
+  deleteRender: (renderId: string) =>
+    invoke<void>("delete_render", { renderId }),
 
   // Whisper
   whisperModelStatus: (model: WhisperModel) =>

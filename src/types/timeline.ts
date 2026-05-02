@@ -84,6 +84,53 @@ export const REEL_9_16: RenderPreset = {
   loudnormLufs: -16,
 };
 
+export const YOUTUBE_16_9: RenderPreset = {
+  id: "youtube-16-9",
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  videoCodec: "h264_videotoolbox",
+  videoBitrate: "12M",
+  audioCodec: "aac",
+  audioBitrate: "192k",
+  loudnormLufs: -14,
+};
+
+export const PRORES_MASTER: RenderPreset = {
+  id: "prores-master",
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  videoCodec: "prores_videotoolbox",
+  videoBitrate: "0",
+  audioCodec: "pcm_s16le",
+  audioBitrate: "1536k",
+  loudnormLufs: null,
+};
+
+export const ALL_PRESETS: RenderPreset[] = [REEL_9_16, YOUTUBE_16_9, PRORES_MASTER];
+
+export interface RenderRow {
+  id: string;
+  projectId: string;
+  preset: string;
+  outputPath: string;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  progress: number;
+  error: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  createdAt: number;
+}
+
+export type RenderQueueEvent =
+  | { stage: "queued"; renderId: string }
+  | { stage: "started"; renderId: string }
+  | { stage: "progress"; renderId: string; frame: number; totalFrames: number | null }
+  | { stage: "done"; renderId: string; outputPath: string }
+  | { stage: "failed"; renderId: string; message: string }
+  | { stage: "cancelled"; renderId: string };
+
 export interface SilenceRange {
   startSec: number;
   endSec: number;
