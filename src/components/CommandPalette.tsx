@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, LayoutDashboard, Settings } from "lucide-react";
+import { ArrowRight, LayoutDashboard, Palette, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export function CommandPalette() {
@@ -42,6 +42,7 @@ export function CommandPalette() {
               </Command.Empty>
               <Command.Group heading="Navigate">
                 <Entry icon={LayoutDashboard} label="Projects" onSelect={() => go("/dashboard")} />
+                <Entry icon={Palette} label="Brand kits" onSelect={() => go("/brand-kits")} />
                 <Entry icon={Settings} label="Settings" onSelect={() => go("/settings")} />
               </Command.Group>
             </Command.List>

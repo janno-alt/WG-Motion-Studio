@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
+import { LayoutDashboard, Palette, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
 
 import { useAppStore } from "@/state/appStore";
 import { ApiUsageWidget } from "@/components/ApiUsageWidget";
@@ -16,6 +16,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Projects", icon: LayoutDashboard },
+  { to: "/brand-kits", label: "Brand kits", icon: Palette },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
