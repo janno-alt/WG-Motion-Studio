@@ -94,6 +94,12 @@ export const commands = {
     invoke<Asset[]>("list_assets", { projectId }),
   getAsset: (assetId: string) => invoke<Asset>("get_asset", { assetId }),
   deleteAsset: (assetId: string) => invoke<void>("delete_asset", { assetId }),
+  listAssetTags: (assetId: string) =>
+    invoke<string[]>("list_asset_tags", { assetId }),
+  setAssetTags: (assetId: string, tags: string[]) =>
+    invoke<string[]>("set_asset_tags", { assetId, tags }),
+  searchAssets: (projectId: string, query: string) =>
+    invoke<{ asset: Asset; tags: string[] }[]>("search_assets", { projectId, query }),
 
   // Timeline
   loadTimeline: (projectId: string) =>

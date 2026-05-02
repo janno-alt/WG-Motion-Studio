@@ -1,14 +1,12 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { toast } from "sonner";
-import { FilePlus2, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
-import { commands } from "@/lib/tauri";
 import { useAssetsStore } from "@/state/assetsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+import { AssetBrowser } from "@/features/assets/AssetBrowser";
 import { CaptionsPanel } from "@/features/captions/CaptionsPanel";
 import { RenderDialog } from "@/features/render/RenderDialog";
 import { useTimelineHotkeys } from "./hooks/useTimelineHotkeys";
@@ -24,13 +22,11 @@ export function TimelineScreen() {
   const setZoom = useTimelineStore((s) => s.setZoom);
   const load = useTimelineStore((s) => s.load);
   const reset = useTimelineStore((s) => s.reset);
-  const addClip = useTimelineStore((s) => s.addClip);
-  const saveSnapshot = useTimelineStore((s) => s.saveSnapshot);
   const loadAssets = useAssetsStore((s) => s.load);
-  const upsertAsset = useAssetsStore((s) => s.upsert);
 
   const trackPanelRef = useRef<HTMLDivElement>(null);
   const [renderOpen, setRenderOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<"assets" | "captions">("assets");
   useTimelineHotkeys();
 
   useEffect(() => {
@@ -51,45 +47,6 @@ export function TimelineScreen() {
 
   const trackPanelWidth = durationSec * zoom;
 
-  const importVideo = async () => {
-    if (!projectId) return;
-    const picked = await open({
-      multiple: false,
-      filters: [
-        { name: "Media", extensions: ["mp4", "mov", "m4v", "mkv", "webm", "mp3", "wav", "m4a", "aac", "jpg", "jpeg", "png"] },
-      ],
-    });
-    if (!picked || typeof picked !== "string") return;
-    try {
-      const asset = await commands.importAsset(projectId, picked);
-      upsertAsset(asset);
-      const targetTrack =
-        tracks.find((t) => t.kind === (asset.kind === "audio" ? "audio" : "video")) ?? tracks[0];
-      if (!targetTrack) {
-        toast.error("No matching track for this asset.");
-        return;
-      }
-      const dur = asset.durationSec ?? 5;
-      const lastEnd = clips
-        .filter((c) => c.trackId === targetTrack.id)
-        .reduce((m, c) => Math.max(m, c.startSec + c.durationSec), 0);
-      addClip({
-        trackId: targetTrack.id,
-        assetId: asset.id,
-        kind: asset.kind === "audio" ? "audio" : asset.kind === "image" ? "image" : "video",
-        startSec: lastEnd,
-        durationSec: dur,
-        inPointSec: 0,
-        outPointSec: dur,
-        data: null,
-      });
-      await saveSnapshot();
-      toast.success(`Imported ${asset.name}`);
-    } catch (err) {
-      toast.error(`Import failed: ${String(err)}`);
-    }
-  };
-
   if (!projectId) {
     return <div className="p-6 text-sm text-text-muted">No project selected.</div>;
   }
@@ -99,19 +56,9 @@ export function TimelineScreen() {
       <ScreenHeader
         title="Timeline"
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<FilePlus2 size={14} />}
-              onClick={() => void importVideo()}
-            >
-              Import
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
-              Render
-            </Button>
-          </div>
+          <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
+            Render
+          </Button>
         }
       />
 
@@ -120,7 +67,17 @@ export function TimelineScreen() {
           <PreviewPane width={1080} height={1920} />
         </div>
         <div className="flex w-1/2 flex-col">
-          <CaptionsPanel />
+          <div className="flex h-8 shrink-0 items-center border-b border-border-subtle bg-surface-1">
+            <TabButton active={rightTab === "assets"} onClick={() => setRightTab("assets")}>
+              Assets
+            </TabButton>
+            <TabButton active={rightTab === "captions"} onClick={() => setRightTab("captions")}>
+              Captions
+            </TabButton>
+          </div>
+          <div className="flex-1 min-h-0">
+            {rightTab === "assets" ? <AssetBrowser /> : <CaptionsPanel />}
+          </div>
         </div>
       </div>
 
@@ -162,5 +119,33 @@ export function TimelineScreen() {
 
       <RenderDialog open={renderOpen} onClose={() => setRenderOpen(false)} />
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "relative h-full px-4 text-xs font-medium transition-colors",
+        active
+          ? "text-text-primary"
+          : "text-text-secondary hover:bg-surface-2 hover:text-text-primary",
+      ].join(" ")}
+    >
+      {children}
+      {active ? (
+        <span className="absolute inset-x-3 bottom-0 h-0.5 bg-accent-primary" />
+      ) : null}
+    </button>
   );
 }

@@ -70,6 +70,9 @@ pub fn run() {
             assets::list_assets,
             assets::get_asset,
             assets::delete_asset,
+            assets::list_asset_tags,
+            assets::set_asset_tags,
+            assets::search_assets,
             // Timeline
             timeline::load_timeline,
             timeline::save_timeline,
