@@ -11,6 +11,7 @@ mod paths;
 mod render;
 mod secrets;
 mod timeline;
+mod whisper;
 
 use tauri::Manager;
 
@@ -68,6 +69,10 @@ pub fn run() {
             timeline::create_default_tracks,
             // Render
             render::render_timeline,
+            // Whisper
+            whisper::whisper_model_status,
+            whisper::whisper_download_model,
+            whisper::whisper_transcribe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

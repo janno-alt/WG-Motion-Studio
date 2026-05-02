@@ -34,6 +34,10 @@ pub fn db_path(handle: &AppHandle) -> AppResult<PathBuf> {
     Ok(config_dir(handle)?.join("db.sqlite"))
 }
 
+pub fn models_dir(handle: &AppHandle) -> AppResult<PathBuf> {
+    Ok(config_dir(handle)?.join("models"))
+}
+
 /// User-facing project outputs (generated assets, renders, exports).
 pub fn projects_dir(handle: &AppHandle) -> AppResult<PathBuf> {
     let base = handle
