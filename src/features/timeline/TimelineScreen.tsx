@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Scissors, Sliders, Zap, ZoomIn, ZoomOut } from "lucide-react";
+import { Package, Scissors, Sliders, Zap, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -10,6 +10,7 @@ import { AiPanel } from "@/features/ai/AiPanel";
 import { VibeModeDialog } from "@/features/ai/VibeModeDialog";
 import { AssetBrowser } from "@/features/assets/AssetBrowser";
 import { CaptionsPanel } from "@/features/captions/CaptionsPanel";
+import { FcpxmlExportDialog } from "@/features/export/FcpxmlExportDialog";
 import { RenderDialog } from "@/features/render/RenderDialog";
 import { useTimelineHotkeys } from "./hooks/useTimelineHotkeys";
 import { AutoCutDialog } from "./AutoCutDialog";
@@ -32,6 +33,7 @@ export function TimelineScreen() {
   const [renderOpen, setRenderOpen] = useState(false);
   const [autoCutOpen, setAutoCutOpen] = useState(false);
   const [vibeOpen, setVibeOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [proMode, setProMode] = useState(false);
   const [rightTab, setRightTab] = useState<"assets" | "captions" | "ai">("assets");
   useTimelineHotkeys();
@@ -88,6 +90,14 @@ export function TimelineScreen() {
               onClick={() => setAutoCutOpen(true)}
             >
               Auto-cut
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<Package size={12} />}
+              onClick={() => setExportOpen(true)}
+            >
+              Export
             </Button>
             <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
               Render
@@ -163,6 +173,7 @@ export function TimelineScreen() {
       <RenderDialog open={renderOpen} onClose={() => setRenderOpen(false)} />
       <AutoCutDialog open={autoCutOpen} onClose={() => setAutoCutOpen(false)} />
       <VibeModeDialog open={vibeOpen} onClose={() => setVibeOpen(false)} />
+      <FcpxmlExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <TheatreStudio enabled={proMode} onClose={() => setProMode(false)} />
     </div>
   );

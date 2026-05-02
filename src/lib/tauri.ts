@@ -80,6 +80,10 @@ export const commands = {
   copySrtIntoProject: (projectId: string, sourcePath: string) =>
     invoke<string>("copy_srt_into_project", { projectId, sourcePath }),
   readFileAsString: (path: string) => invoke<string>("read_file_as_string", { path }),
+  writeProjectExport: (projectId: string, filename: string, contents: string) =>
+    invoke<string>("write_project_export", { projectId, filename, contents }),
+  zipProjectExports: (projectId: string, projectName: string) =>
+    invoke<string>("zip_project_exports", { projectId, projectName }),
 
   // Usage
   getUsageSince: (sinceMs: number) =>

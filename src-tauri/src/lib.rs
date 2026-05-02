@@ -65,6 +65,8 @@ pub fn run() {
             commands::ensure_project_dir,
             commands::copy_srt_into_project,
             commands::read_file_as_string,
+            commands::write_project_export,
+            commands::zip_project_exports,
             // Usage
             commands::get_usage_since,
             // Reveal
