@@ -8,6 +8,7 @@ mod ipc;
 mod logger;
 mod media_probe;
 mod paths;
+mod render;
 mod secrets;
 mod timeline;
 
@@ -65,6 +66,8 @@ pub fn run() {
             timeline::load_timeline,
             timeline::save_timeline,
             timeline::create_default_tracks,
+            // Render
+            render::render_timeline,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
