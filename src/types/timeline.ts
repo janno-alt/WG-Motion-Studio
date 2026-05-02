@@ -1,6 +1,14 @@
 export type TrackKind = "video" | "audio" | "captions";
 
-export type ClipKind = "video" | "audio" | "image" | "caption";
+export type ClipKind =
+  | "video"
+  | "audio"
+  | "image"
+  | "caption"
+  | "titleCard"
+  | "lowerThird"
+  | "outro"
+  | "lottie";
 
 export interface Track {
   id: string;

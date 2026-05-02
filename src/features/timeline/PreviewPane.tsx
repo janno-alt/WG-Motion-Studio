@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { TimelineComposition, timelineDurationFrames } from "@/lib/timeline/composition";
 import { useAssetsStore } from "@/state/assetsStore";
+import { useBrandKitsStore } from "@/state/brandKitsStore";
+import { useProjectsStore } from "@/state/projectsStore";
 import { useTimelineStore } from "@/state/timelineStore";
 
 const PREVIEW_FPS = 30;
@@ -20,8 +22,17 @@ export function PreviewPane({ width, height }: Props) {
   const playheadSec = useTimelineStore((s) => s.playheadSec);
   const setPlayhead = useTimelineStore((s) => s.setPlayhead);
   const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const projects = useProjectsStore((s) => s.projects);
+  const brandKits = useBrandKitsStore((s) => s.brandKits);
 
   const ref = useRef<PlayerRef>(null);
+
+  const brandKit = useMemo(() => {
+    if (!projectId) return null;
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return null;
+    return brandKits.find((k) => k.id === project.clientId) ?? null;
+  }, [projectId, projects, brandKits]);
 
   const timeline = useMemo(
     () => ({ projectId: projectId ?? "", tracks, clips }),
@@ -31,8 +42,8 @@ export function PreviewPane({ width, height }: Props) {
   const durationInFrames = Math.max(1, timelineDurationFrames(timeline, PREVIEW_FPS));
 
   const inputProps = useMemo(
-    () => ({ timeline, assets, fps: PREVIEW_FPS, width, height }),
-    [timeline, assets, width, height],
+    () => ({ timeline, assets, brandKit, fps: PREVIEW_FPS, width, height }),
+    [timeline, assets, brandKit, width, height],
   );
 
   // Seek the player when playhead changes externally (e.g. ruler drag).

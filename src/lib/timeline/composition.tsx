@@ -7,17 +7,21 @@ import {
   Sequence,
 } from "remotion";
 
-import type { Asset, Clip, Timeline, Track } from "@/types";
+import type { Asset, BrandKit, Clip, Timeline, Track } from "@/types";
+import { LowerThird } from "./components/LowerThird";
+import { Outro } from "./components/Outro";
+import { TitleCard } from "./components/TitleCard";
 
 interface Props {
   timeline: Timeline;
   assets: Asset[];
+  brandKit: BrandKit | null;
   fps: number;
   width: number;
   height: number;
 }
 
-export function TimelineComposition({ timeline, assets }: Props) {
+export function TimelineComposition({ timeline, assets, brandKit }: Props) {
   const assetById = new Map(assets.map((a) => [a.id, a] as const));
   const videoTracks = sortBy(
     timeline.tracks.filter((t) => t.kind === "video" && !t.hidden),
@@ -37,6 +41,7 @@ export function TimelineComposition({ timeline, assets }: Props) {
           track={track}
           clips={timeline.clips.filter((c) => c.trackId === track.id)}
           assetById={assetById}
+          brandKit={brandKit}
         />
       ))}
       {audioTracks.map((track) => (
@@ -55,32 +60,59 @@ export function TimelineComposition({ timeline, assets }: Props) {
 function VideoLayer({
   clips,
   assetById,
+  brandKit,
 }: {
   track: Track;
   clips: Clip[];
   assetById: Map<string, Asset>;
+  brandKit: BrandKit | null;
 }) {
   return (
     <>
       {clips.map((clip) => {
-        if (clip.assetId == null) return null;
-        const asset = assetById.get(clip.assetId);
-        if (!asset) return null;
         const fps = 30;
         const from = Math.round(clip.startSec * fps);
         const dur = Math.max(1, Math.round(clip.durationSec * fps));
         const startFrom = Math.round(clip.inPointSec * fps);
-        const src = convertFileSrc(asset.path);
 
-        return (
-          <Sequence key={clip.id} from={from} durationInFrames={dur}>
-            {clip.kind === "video" ? (
-              <OffthreadVideo src={src} startFrom={startFrom} muted />
-            ) : clip.kind === "image" ? (
-              <Img src={src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            ) : null}
-          </Sequence>
-        );
+        if (clip.kind === "video" || clip.kind === "image") {
+          if (clip.assetId == null) return null;
+          const asset = assetById.get(clip.assetId);
+          if (!asset) return null;
+          const src = convertFileSrc(asset.path);
+          return (
+            <Sequence key={clip.id} from={from} durationInFrames={dur}>
+              {clip.kind === "video" ? (
+                <OffthreadVideo src={src} startFrom={startFrom} muted />
+              ) : (
+                <Img src={src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              )}
+            </Sequence>
+          );
+        }
+
+        if (clip.kind === "titleCard") {
+          return (
+            <Sequence key={clip.id} from={from} durationInFrames={dur}>
+              <TitleCard data={clip.data} brandKit={brandKit} />
+            </Sequence>
+          );
+        }
+        if (clip.kind === "lowerThird") {
+          return (
+            <Sequence key={clip.id} from={from} durationInFrames={dur}>
+              <LowerThird data={clip.data} brandKit={brandKit} />
+            </Sequence>
+          );
+        }
+        if (clip.kind === "outro") {
+          return (
+            <Sequence key={clip.id} from={from} durationInFrames={dur}>
+              <Outro data={clip.data} brandKit={brandKit} />
+            </Sequence>
+          );
+        }
+        return null;
       })}
     </>
   );
