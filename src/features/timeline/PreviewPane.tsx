@@ -1,0 +1,92 @@
+import { Player } from "@remotion/player";
+import type { PlayerRef } from "@remotion/player";
+import { useEffect, useMemo, useRef } from "react";
+
+import { TimelineComposition, timelineDurationFrames } from "@/lib/timeline/composition";
+import { useAssetsStore } from "@/state/assetsStore";
+import { useTimelineStore } from "@/state/timelineStore";
+
+const PREVIEW_FPS = 30;
+
+interface Props {
+  width: number;
+  height: number;
+}
+
+export function PreviewPane({ width, height }: Props) {
+  const projectId = useTimelineStore((s) => s.projectId);
+  const tracks = useTimelineStore((s) => s.tracks);
+  const clips = useTimelineStore((s) => s.clips);
+  const playheadSec = useTimelineStore((s) => s.playheadSec);
+  const setPlayhead = useTimelineStore((s) => s.setPlayhead);
+  const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+
+  const ref = useRef<PlayerRef>(null);
+
+  const timeline = useMemo(
+    () => ({ projectId: projectId ?? "", tracks, clips }),
+    [projectId, tracks, clips],
+  );
+
+  const durationInFrames = Math.max(1, timelineDurationFrames(timeline, PREVIEW_FPS));
+
+  const inputProps = useMemo(
+    () => ({ timeline, assets, fps: PREVIEW_FPS, width, height }),
+    [timeline, assets, width, height],
+  );
+
+  // Seek the player when playhead changes externally (e.g. ruler drag).
+  useEffect(() => {
+    const target = Math.round(playheadSec * PREVIEW_FPS);
+    const player = ref.current;
+    if (!player) return;
+    if (Math.abs(player.getCurrentFrame() - target) > 1) {
+      player.seekTo(target);
+    }
+  }, [playheadSec]);
+
+  // Push the player's current frame into the store while playing so the
+  // ruler tracks it.
+  useEffect(() => {
+    const player = ref.current;
+    if (!player) return;
+    let raf = 0;
+    const tick = () => {
+      const f = player.getCurrentFrame();
+      const sec = f / PREVIEW_FPS;
+      const current = useTimelineStore.getState().playheadSec;
+      if (Math.abs(sec - current) > 1 / PREVIEW_FPS) {
+        setPlayhead(sec);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [setPlayhead]);
+
+  if (clips.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-surface-0 text-xs text-text-muted">
+        Drag a video file onto the timeline below to start.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-black">
+      <Player
+        ref={ref}
+        component={TimelineComposition}
+        compositionWidth={width}
+        compositionHeight={height}
+        durationInFrames={durationInFrames}
+        fps={PREVIEW_FPS}
+        inputProps={inputProps}
+        controls
+        clickToPlay
+        style={{ maxWidth: "100%", maxHeight: "100%" }}
+        acknowledgeRemotionLicense
+      />
+    </div>
+  );
+}
