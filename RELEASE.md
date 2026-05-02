@@ -73,7 +73,7 @@ That kicks off `.github/workflows/release.yml` which:
 
 1. Spins up a `macos-14` runner (arm64).
 2. Builds the sidecar binaries (ffmpeg + ffprobe via Homebrew, whisper
-   from source).
+   from source — `cmake --build … --target whisper-cli`).
 3. Runs `tauri build --target aarch64-apple-darwin`, signing with
    `TAURI_SIGNING_PRIVATE_KEY`.
 4. Creates the GitHub Release `v0.2.0` and uploads:
