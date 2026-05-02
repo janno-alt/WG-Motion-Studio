@@ -99,6 +99,15 @@ export const DEFAULT_SILENCE_PARAMS: SilenceParams = {
   minDurationSec: 1.0,
 };
 
+export interface RenderBrandKit {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  headlineFont: string;
+  bodyFont: string;
+}
+
 export interface RenderRequest {
   renderId: string;
   projectId: string;
@@ -106,6 +115,7 @@ export interface RenderRequest {
   assets: Asset[];
   preset: RenderPreset;
   outputPath: string;
+  brandKit: RenderBrandKit | null;
 }
 
 export type RenderProgressEvent =

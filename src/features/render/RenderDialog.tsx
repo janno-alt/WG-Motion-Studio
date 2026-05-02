@@ -6,8 +6,14 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { commands } from "@/lib/tauri";
-import { REEL_9_16, type RenderProgressEvent } from "@/types";
+import {
+  REEL_9_16,
+  type RenderBrandKit,
+  type RenderProgressEvent,
+} from "@/types";
 import { useAssetsStore } from "@/state/assetsStore";
+import { useBrandKitsStore } from "@/state/brandKitsStore";
+import { useProjectsStore } from "@/state/projectsStore";
 import { useTimelineStore } from "@/state/timelineStore";
 
 interface Props {
@@ -20,6 +26,8 @@ export function RenderDialog({ open, onClose }: Props) {
   const tracks = useTimelineStore((s) => s.tracks);
   const clips = useTimelineStore((s) => s.clips);
   const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const projects = useProjectsStore((s) => s.projects);
+  const brandKits = useBrandKitsStore((s) => s.brandKits);
 
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ frame: number; total: number | null } | null>(null);
@@ -40,6 +48,19 @@ export function RenderDialog({ open, onClose }: Props) {
     setProgress({ frame: 0, total: null });
     setOutputPath(null);
 
+    const project = projects.find((p) => p.id === projectId);
+    const fullKit = project ? brandKits.find((k) => k.id === project.clientId) : undefined;
+    const brandKit: RenderBrandKit | null = fullKit
+      ? {
+          primary: fullKit.colors.primary,
+          secondary: fullKit.colors.secondary,
+          accent: fullKit.colors.accent,
+          background: fullKit.colors.background,
+          headlineFont: fullKit.typography.headlineFont,
+          bodyFont: fullKit.typography.bodyFont,
+        }
+      : null;
+
     try {
       const finalPath = await commands.renderTimeline(
         {
@@ -49,6 +70,7 @@ export function RenderDialog({ open, onClose }: Props) {
           assets,
           preset: REEL_9_16,
           outputPath: outPath,
+          brandKit,
         },
         (e: RenderProgressEvent) => {
           if (e.stage === "encoding") {

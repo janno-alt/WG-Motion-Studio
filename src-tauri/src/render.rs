@@ -43,6 +43,32 @@ pub fn reel_9_16() -> RenderPreset {
     }
 }
 
+/// Subset of BrandKit the renderer needs. Frontend extracts this from the
+/// full BrandKit before issuing the render command.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderBrandKit {
+    pub primary: String,
+    pub secondary: String,
+    pub accent: String,
+    pub background: String,
+    pub headline_font: String,
+    pub body_font: String,
+}
+
+impl RenderBrandKit {
+    pub fn fallback() -> Self {
+        Self {
+            primary: "#A8E544".into(),
+            secondary: "#1A1A1A".into(),
+            accent: "#FF7F50".into(),
+            background: "#0B0C0F".into(),
+            headline_font: "Inter".into(),
+            body_font: "Inter".into(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderRequest {
@@ -52,6 +78,8 @@ pub struct RenderRequest {
     pub assets: Vec<Asset>,
     pub preset: RenderPreset,
     pub output_path: String,
+    #[serde(default)]
+    pub brand_kit: Option<RenderBrandKit>,
 }
 
 #[tauri::command]
@@ -248,10 +276,19 @@ pub fn build_render_plan(req: &RenderRequest) -> AppResult<RenderPlan> {
         current
     };
 
-    let final_video_label = match captions_track {
+    let video_after_captions = match captions_track {
         Some(t) => burn_captions(&mut filter_parts, &req.timeline.clips, t, &video_after_overlay),
         None => video_after_overlay,
     };
+
+    let brand_kit = req.brand_kit.clone().unwrap_or_else(RenderBrandKit::fallback);
+    let final_video_label = burn_graphic_clips(
+        &mut filter_parts,
+        &req.timeline.clips,
+        &brand_kit,
+        preset,
+        &video_after_captions,
+    );
 
     let mut audio_track_outputs: Vec<String> = Vec::new();
     for (ti, track) in audio_tracks.iter().enumerate() {
@@ -454,6 +491,240 @@ fn escape_drawtext(s: &str) -> String {
         .replace('%', "\\%")
 }
 
+/// Convert "#RRGGBB" or "#RGB" to FFmpeg's "0xRRGGBB" form. Returns the
+/// fallback unchanged if the input doesn't match.
+fn hex_to_ffmpeg_color(hex: &str) -> String {
+    let h = hex.trim();
+    let rest = h.strip_prefix('#').unwrap_or(h);
+    if rest.len() == 6 && rest.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("0x{rest}")
+    } else if rest.len() == 3 && rest.chars().all(|c| c.is_ascii_hexdigit()) {
+        let r: String = rest.chars().nth(0).unwrap().to_string().repeat(2);
+        let g: String = rest.chars().nth(1).unwrap().to_string().repeat(2);
+        let b: String = rest.chars().nth(2).unwrap().to_string().repeat(2);
+        format!("0x{r}{g}{b}")
+    } else {
+        h.to_string()
+    }
+}
+
+/// Burns titleCard / lowerThird / outro / lottie clips on top of the video
+/// chain via drawbox + drawtext filters. Each clip is rendered exclusively
+/// during its [start, start+duration] window via `enable=between(t,...)`.
+fn burn_graphic_clips(
+    filter_parts: &mut Vec<String>,
+    clips: &[Clip],
+    bk: &RenderBrandKit,
+    preset: &RenderPreset,
+    video_in: &str,
+) -> String {
+    let graphics: Vec<&Clip> = clips
+        .iter()
+        .filter(|c| matches!(c.kind.as_str(), "titleCard" | "lowerThird" | "outro" | "lottie"))
+        .collect();
+    if graphics.is_empty() {
+        return video_in.to_string();
+    }
+
+    let bg = hex_to_ffmpeg_color(&bk.background);
+    let primary = hex_to_ffmpeg_color(&bk.primary);
+    let accent = hex_to_ffmpeg_color(&bk.accent);
+    let head_font = bk.headline_font.replace('\'', "");
+    let body_font = bk.body_font.replace('\'', "");
+
+    let mut current = video_in.to_string();
+    for (gi, c) in graphics.iter().enumerate() {
+        let t0 = c.start_sec;
+        let t1 = c.start_sec + c.duration_sec;
+        let enable = format!("enable='between(t\\,{}\\,{})'", t0, t1);
+
+        match c.kind.as_str() {
+            "titleCard" => {
+                let title = c.data.as_ref().and_then(|v| v.get("title")).and_then(|v| v.as_str()).unwrap_or("Headline");
+                let subtitle = c.data.as_ref().and_then(|v| v.get("subtitle")).and_then(|v| v.as_str()).unwrap_or("");
+                let anchor = c.data.as_ref().and_then(|v| v.get("anchor")).and_then(|v| v.as_str()).unwrap_or("center");
+
+                let title_y = match anchor {
+                    "top" => format!("h*0.18"),
+                    "bottom" => format!("h*0.74"),
+                    _ => format!("(h-text_h)/2-h*0.04"),
+                };
+                let subtitle_y = match anchor {
+                    "top" => format!("h*0.18+h*0.10"),
+                    "bottom" => format!("h*0.74+h*0.10"),
+                    _ => format!("(h-text_h)/2+h*0.06"),
+                };
+
+                // Background veil
+                let label = format!("vg{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawbox=x=0:y=0:w=iw:h=ih:color={}@0.82:t=fill:{}[{}]",
+                    current, bg, enable, label
+                ));
+                current = label;
+
+                // Title
+                let label = format!("vgt{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x=(w-text_w)/2:y={}:{}[{}]",
+                    current,
+                    escape_drawtext(title),
+                    head_font,
+                    (preset.width as f64 / 13.5) as u32,
+                    primary,
+                    title_y,
+                    enable,
+                    label
+                ));
+                current = label;
+
+                if !subtitle.is_empty() {
+                    let label = format!("vgs{}", gi);
+                    filter_parts.push(format!(
+                        "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x=(w-text_w)/2:y={}:{}[{}]",
+                        current,
+                        escape_drawtext(subtitle),
+                        body_font,
+                        (preset.width as f64 / 25.0) as u32,
+                        accent,
+                        subtitle_y,
+                        enable,
+                        label
+                    ));
+                    current = label;
+                }
+            }
+            "lowerThird" => {
+                let name = c.data.as_ref().and_then(|v| v.get("name")).and_then(|v| v.as_str()).unwrap_or("Speaker");
+                let subtitle = c.data.as_ref().and_then(|v| v.get("subtitle")).and_then(|v| v.as_str()).unwrap_or("");
+                let anchor = c.data.as_ref().and_then(|v| v.get("anchor")).and_then(|v| v.as_str()).unwrap_or("left");
+
+                // Box: positioned bottom-left or bottom-right
+                let box_x = if anchor == "right" {
+                    "iw-w-iw*0.05".to_string()
+                } else {
+                    "iw*0.05".to_string()
+                };
+                let box_y = "ih*0.78".to_string();
+                let box_w = "iw*0.55";
+                let box_h = if subtitle.is_empty() { "ih*0.08" } else { "ih*0.13" };
+
+                // For drawbox we need width/height as static expressions.
+                // FFmpeg supports expressions via `w=iw*0.55:h=ih*0.13`.
+                let label = format!("vg{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawbox=x={}:y={}:w={}:h={}:color={}:t=fill:{}[{}]",
+                    current, box_x, box_y, box_w, box_h, primary, enable, label
+                ));
+                current = label;
+
+                // Text inside box. We approximate the box position with
+                // simple offsets — drawtext expressions reference the FRAME,
+                // not the box, so we anchor relative to canvas.
+                let text_x = if anchor == "right" {
+                    "iw-text_w-iw*0.07".to_string()
+                } else {
+                    "iw*0.07".to_string()
+                };
+                let name_y = "ih*0.80";
+                let label = format!("vgn{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x={}:y={}:{}[{}]",
+                    current,
+                    escape_drawtext(name),
+                    body_font,
+                    (preset.width as f64 / 24.0) as u32,
+                    bg,
+                    text_x,
+                    name_y,
+                    enable,
+                    label
+                ));
+                current = label;
+
+                if !subtitle.is_empty() {
+                    let label = format!("vgsub{}", gi);
+                    filter_parts.push(format!(
+                        "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x={}:y={}:{}[{}]",
+                        current,
+                        escape_drawtext(subtitle),
+                        body_font,
+                        (preset.width as f64 / 36.0) as u32,
+                        bg,
+                        text_x,
+                        "ih*0.85",
+                        enable,
+                        label
+                    ));
+                    current = label;
+                }
+            }
+            "outro" => {
+                let headline = c.data.as_ref().and_then(|v| v.get("headline")).and_then(|v| v.as_str()).unwrap_or("Thanks");
+                let cta = c.data.as_ref().and_then(|v| v.get("cta")).and_then(|v| v.as_str()).unwrap_or("");
+
+                let label = format!("vg{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawbox=x=0:y=0:w=iw:h=ih:color={}:t=fill:{}[{}]",
+                    current, bg, enable, label
+                ));
+                current = label;
+
+                let label = format!("vgh{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x=(w-text_w)/2:y=(h-text_h)/2-h*0.05:{}[{}]",
+                    current,
+                    escape_drawtext(headline),
+                    head_font,
+                    (preset.width as f64 / 12.0) as u32,
+                    primary,
+                    enable,
+                    label
+                ));
+                current = label;
+
+                if !cta.is_empty() {
+                    let label = format!("vgc{}", gi);
+                    filter_parts.push(format!(
+                        "[{}]drawtext=text='{}':font='{}':fontsize={}:fontcolor={}:x=(w-text_w)/2:y=(h-text_h)/2+h*0.05:{}[{}]",
+                        current,
+                        escape_drawtext(cta),
+                        body_font,
+                        (preset.width as f64 / 22.0) as u32,
+                        accent,
+                        enable,
+                        label
+                    ));
+                    current = label;
+                }
+            }
+            "lottie" => {
+                // Wave 4 placeholder: render a small "Lottie clip" tag.
+                // True Lottie rendering is Wave 5 territory.
+                let label = format!("vg{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawbox=x=iw*0.4:y=ih*0.45:w=iw*0.2:h=ih*0.10:color={}:t=fill:{}[{}]",
+                    current, primary, enable, label
+                ));
+                current = label;
+                let label = format!("vgL{}", gi);
+                filter_parts.push(format!(
+                    "[{}]drawtext=text='Lottie clip':font='{}':fontsize={}:fontcolor={}:x=(w-text_w)/2:y=(h-text_h)/2:{}[{}]",
+                    current,
+                    body_font,
+                    (preset.width as f64 / 30.0) as u32,
+                    bg,
+                    enable,
+                    label
+                ));
+                current = label;
+            }
+            _ => {}
+        }
+    }
+    current
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -520,6 +791,7 @@ mod tests {
             assets: vec![mk_asset("a1", "/tmp/a1.mp4", 10.0)],
             preset: reel_9_16(),
             output_path: "/tmp/out.mp4".into(),
+            brand_kit: None,
         };
 
         let plan = build_render_plan(&request).expect("plan");
@@ -559,6 +831,7 @@ mod tests {
             assets: vec![mk_asset("a1", "/tmp/a1.mp4", 10.0)],
             preset: reel_9_16(),
             output_path: "/tmp/out.mp4".into(),
+            brand_kit: None,
         };
 
         let plan = build_render_plan(&request).expect("plan");
@@ -591,11 +864,106 @@ mod tests {
             assets: vec![mk_asset("ast1", "/tmp/song.mp3", 60.0)],
             preset: reel_9_16(),
             output_path: "/tmp/out.mp4".into(),
+            brand_kit: None,
         };
 
         let plan = build_render_plan(&request).expect("plan");
         let fc = &plan.args[plan.args.iter().position(|s| s == "-filter_complex").unwrap() + 1];
         assert!(fc.contains("adelay=2500|2500"), "fc: {fc}");
+    }
+
+    #[test]
+    fn hex_color_conversion() {
+        assert_eq!(hex_to_ffmpeg_color("#A8E544"), "0xA8E544");
+        assert_eq!(hex_to_ffmpeg_color("a8e544"), "0xa8e544");
+        assert_eq!(hex_to_ffmpeg_color("#fff"), "0xffffff");
+        assert_eq!(hex_to_ffmpeg_color("not-a-color"), "not-a-color");
+    }
+
+    #[test]
+    fn title_card_burns_drawbox_and_drawtext() {
+        use serde_json::json;
+        let request = RenderRequest {
+            render_id: "r1".into(),
+            project_id: "p1".into(),
+            timeline: Timeline {
+                project_id: "p1".into(),
+                tracks: vec![mk_track("v1", "video", 0)],
+                clips: vec![Clip {
+                    id: "tc1".into(),
+                    track_id: "v1".into(),
+                    asset_id: None,
+                    kind: "titleCard".into(),
+                    start_sec: 0.0,
+                    duration_sec: 3.0,
+                    in_point_sec: 0.0,
+                    out_point_sec: 3.0,
+                    data: Some(json!({
+                        "title": "Hello",
+                        "subtitle": "World",
+                        "anchor": "center"
+                    })),
+                    sort_order: 0,
+                }],
+            },
+            assets: vec![],
+            preset: reel_9_16(),
+            output_path: "/tmp/out.mp4".into(),
+            brand_kit: None,
+        };
+
+        let plan = build_render_plan(&request).expect("plan");
+        let fc = &plan.args[plan.args.iter().position(|s| s == "-filter_complex").unwrap() + 1];
+        assert!(fc.contains("drawbox"), "fc: {fc}");
+        assert!(fc.contains("drawtext=text='Hello'"), "fc: {fc}");
+        assert!(fc.contains("drawtext=text='World'"), "fc: {fc}");
+        assert!(fc.contains("between(t\\,0\\,3)"), "fc: {fc}");
+    }
+
+    #[test]
+    fn lower_third_uses_brand_kit_primary_for_box() {
+        use serde_json::json;
+        let request = RenderRequest {
+            render_id: "r1".into(),
+            project_id: "p1".into(),
+            timeline: Timeline {
+                project_id: "p1".into(),
+                tracks: vec![mk_track("v1", "video", 0)],
+                clips: vec![Clip {
+                    id: "lt1".into(),
+                    track_id: "v1".into(),
+                    asset_id: None,
+                    kind: "lowerThird".into(),
+                    start_sec: 1.0,
+                    duration_sec: 4.0,
+                    in_point_sec: 0.0,
+                    out_point_sec: 4.0,
+                    data: Some(json!({
+                        "name": "Janno",
+                        "subtitle": "Founder",
+                        "anchor": "left"
+                    })),
+                    sort_order: 0,
+                }],
+            },
+            assets: vec![],
+            preset: reel_9_16(),
+            output_path: "/tmp/out.mp4".into(),
+            brand_kit: Some(RenderBrandKit {
+                primary: "#A8E544".into(),
+                secondary: "#1A1A1A".into(),
+                accent: "#FF7F50".into(),
+                background: "#0B0C0F".into(),
+                headline_font: "Inter".into(),
+                body_font: "Inter".into(),
+            }),
+        };
+
+        let plan = build_render_plan(&request).expect("plan");
+        let fc = &plan.args[plan.args.iter().position(|s| s == "-filter_complex").unwrap() + 1];
+        assert!(fc.contains("color=0xA8E544"), "fc: {fc}");
+        assert!(fc.contains("text='Janno'"), "fc: {fc}");
+        assert!(fc.contains("text='Founder'"), "fc: {fc}");
     }
 
     #[test]
@@ -629,6 +997,7 @@ mod tests {
             assets: vec![mk_asset("a1", "/tmp/a1.mp4", 10.0)],
             preset: reel_9_16(),
             output_path: "/tmp/out.mp4".into(),
+            brand_kit: None,
         };
 
         let plan = build_render_plan(&request).expect("plan");
