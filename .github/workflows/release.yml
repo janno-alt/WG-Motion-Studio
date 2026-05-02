@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Build sidecar binaries (ffmpeg, ffprobe, whisper)
+        run: |
+          set -euo pipefail
+          BIN_DIR="src-tauri/binaries"
+          mkdir -p "$BIN_DIR"
+          # ffmpeg + ffprobe from Homebrew (already include VideoToolbox).
+          brew install ffmpeg
+          cp "$(which ffmpeg)" "$BIN_DIR/ffmpeg-aarch64-apple-darwin"
+          cp "$(which ffprobe)" "$BIN_DIR/ffprobe-aarch64-apple-darwin"
+          chmod +x "$BIN_DIR/ffmpeg-aarch64-apple-darwin" "$BIN_DIR/ffprobe-aarch64-apple-darwin"
+          # whisper.cpp built from source for the runner's arm64.
+          git clone --depth=1 https://github.com/ggerganov/whisper.cpp /tmp/whisper.cpp
+          (cd /tmp/whisper.cpp && make -j)
+          cp /tmp/whisper.cpp/main "$BIN_DIR/whisper-aarch64-apple-darwin"
+          chmod +x "$BIN_DIR/whisper-aarch64-apple-darwin"
+
+      - name: Build + sign + upload
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "WG Video Studio ${{ github.ref_name }}"
+          releaseBody: |
+            See CHANGELOG.md for details.
+
+            Auto-update will pick this release up on next launch via
+            `latest.json` published as a release asset.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: false
+          args: --target aarch64-apple-darwin
