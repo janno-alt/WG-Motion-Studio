@@ -7,10 +7,12 @@ const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig(async () => ({
   plugins: [react()],
+  // Relative asset paths so the embedded WebView can resolve them against
+  // the tauri://localhost/index.html bundle root in production builds.
+  base: "./",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@remotion-project": path.resolve(__dirname, "./remotion"),
     },
   },
   clearScreen: false,

@@ -1,7 +1,7 @@
 {
   "name": "wg-video-studio",
   "private": true,
-  "version": "0.1.0-pivot.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
