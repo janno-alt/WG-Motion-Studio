@@ -4,7 +4,15 @@ import { temporal } from "zundo";
 import type { TemporalState } from "zundo";
 import { useStore } from "zustand";
 
-import type { Asset, Clip, ClipKind, Timeline, Track, TrackKind } from "@/types";
+import type {
+  Asset,
+  Clip,
+  ClipKind,
+  SilenceRange,
+  Timeline,
+  Track,
+  TrackKind,
+} from "@/types";
 import { commands } from "@/lib/tauri";
 
 interface TimelineState {
@@ -40,6 +48,11 @@ interface TimelineState {
   addCaptionsFromSegments: (
     segments: Array<{ startSec: number; endSec: number; text: string }>,
   ) => void;
+
+  applyRippleAutoCut: (clipId: string, silenceRanges: SilenceRange[]) => number;
+
+  setTrackVolume: (trackId: string, volume: number) => void;
+  setTrackMuted: (trackId: string, muted: boolean) => void;
 
   reset: () => void;
 }
@@ -187,6 +200,92 @@ export const useTimelineStore = create<TimelineState>()(
         set((s) => ({
           clips: s.clips.filter((c) => !s.selectedClipIds.has(c.id)),
           selectedClipIds: new Set(),
+        })),
+
+      applyRippleAutoCut: (clipId, silenceRanges) => {
+        const state = get();
+        const clip = state.clips.find((c) => c.id === clipId);
+        if (!clip) return 0;
+
+        // Clip silence ranges to the asset window the clip is using.
+        const clamped = silenceRanges
+          .map((r) => ({
+            start: Math.max(r.startSec, clip.inPointSec),
+            end: Math.min(r.endSec, clip.outPointSec),
+          }))
+          .filter((r) => r.end - r.start > SNAP_EPSILON)
+          .sort((a, b) => a.start - b.start);
+
+        // Compute kept ranges = complement of silence within [in, out]
+        const kept: { start: number; end: number }[] = [];
+        let cursor = clip.inPointSec;
+        for (const sil of clamped) {
+          if (sil.start > cursor + SNAP_EPSILON) {
+            kept.push({ start: cursor, end: sil.start });
+          }
+          cursor = Math.max(cursor, sil.end);
+        }
+        if (cursor < clip.outPointSec - SNAP_EPSILON) {
+          kept.push({ start: cursor, end: clip.outPointSec });
+        }
+
+        const removed =
+          clip.outPointSec -
+          clip.inPointSec -
+          kept.reduce((sum, k) => sum + (k.end - k.start), 0);
+
+        // Build new clips placed back-to-back starting at original startSec.
+        let pos = clip.startSec;
+        const newClips: Clip[] = kept.map((k) => {
+          const dur = k.end - k.start;
+          const c: Clip = {
+            id: `clp-${nanoid(10)}`,
+            trackId: clip.trackId,
+            assetId: clip.assetId,
+            kind: clip.kind,
+            startSec: pos,
+            durationSec: dur,
+            inPointSec: k.start,
+            outPointSec: k.end,
+            data: clip.data,
+            sortOrder: 0,
+          };
+          pos += dur;
+          return c;
+        });
+
+        // Subsequent clips on the same track shift left by `removed` seconds.
+        const oldEnd = clip.startSec + clip.durationSec;
+        set((s) => {
+          const others = s.clips.filter((c) => c.id !== clipId);
+          const shifted = others.map((c) => {
+            if (c.trackId === clip.trackId && c.startSec >= oldEnd - SNAP_EPSILON) {
+              return { ...c, startSec: Math.max(0, c.startSec - removed) };
+            }
+            return c;
+          });
+          const merged = [...shifted, ...newClips];
+          merged
+            .filter((c) => c.trackId === clip.trackId)
+            .sort((a, b) => a.startSec - b.startSec)
+            .forEach((c, i) => {
+              c.sortOrder = i;
+            });
+          return { clips: merged };
+        });
+        return removed;
+      },
+
+      setTrackVolume: (trackId, volume) =>
+        set((s) => ({
+          tracks: s.tracks.map((t) =>
+            t.id === trackId ? { ...t, volume: Math.max(0, Math.min(2, volume)) } : t,
+          ),
+        })),
+
+      setTrackMuted: (trackId, muted) =>
+        set((s) => ({
+          tracks: s.tracks.map((t) => (t.id === trackId ? { ...t, muted } : t)),
         })),
 
       addCaptionsFromSegments: (segments) => {

@@ -7,6 +7,7 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 
 use crate::assets::Asset;
+use crate::audio::loudnorm::LoudnormTarget;
 use crate::error::{AppError, AppResult};
 use crate::ipc::RenderProgress;
 use crate::timeline::{Clip, Timeline, Track};
@@ -22,6 +23,10 @@ pub struct RenderPreset {
     pub video_bitrate: String,
     pub audio_codec: String,
     pub audio_bitrate: String,
+    /// Optional EBU R128 target — when set, a loudnorm filter is appended to
+    /// the final audio chain before encoding.
+    #[serde(default)]
+    pub loudnorm_lufs: Option<f64>,
 }
 
 pub fn reel_9_16() -> RenderPreset {
@@ -34,6 +39,7 @@ pub fn reel_9_16() -> RenderPreset {
         video_bitrate: "8M".into(),
         audio_codec: "aac".into(),
         audio_bitrate: "192k".into(),
+        loudnorm_lufs: Some(LoudnormTarget::REEL.integrated_lufs),
     }
 }
 
@@ -299,7 +305,7 @@ pub fn build_render_plan(req: &RenderRequest) -> AppResult<RenderPlan> {
         audio_track_outputs.push(track_label);
     }
 
-    let final_audio_label = if audio_track_outputs.is_empty() {
+    let mixed_audio_label = if audio_track_outputs.is_empty() {
         let label = "asilence";
         filter_parts.push(format!(
             "anullsrc=channel_layout=stereo:sample_rate=48000[{}]",
@@ -318,6 +324,25 @@ pub fn build_render_plan(req: &RenderRequest) -> AppResult<RenderPlan> {
             label
         ));
         label.to_string()
+    };
+
+    let final_audio_label = match preset.loudnorm_lufs {
+        Some(lufs) => {
+            let target = LoudnormTarget {
+                integrated_lufs: lufs,
+                true_peak_db: -1.0,
+                range_lu: 11.0,
+            };
+            let label = "aloud";
+            filter_parts.push(format!(
+                "[{}]{}[{}]",
+                mixed_audio_label,
+                target.ffmpeg_filter(),
+                label
+            ));
+            label.to_string()
+        }
+        None => mixed_audio_label,
     };
 
     let total_duration_sec = req

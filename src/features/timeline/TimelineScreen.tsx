@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { Scissors, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -10,6 +10,7 @@ import { AssetBrowser } from "@/features/assets/AssetBrowser";
 import { CaptionsPanel } from "@/features/captions/CaptionsPanel";
 import { RenderDialog } from "@/features/render/RenderDialog";
 import { useTimelineHotkeys } from "./hooks/useTimelineHotkeys";
+import { AutoCutDialog } from "./AutoCutDialog";
 import { PreviewPane } from "./PreviewPane";
 import { TimelineRuler } from "./TimelineRuler";
 import { Track } from "./Track";
@@ -26,6 +27,7 @@ export function TimelineScreen() {
 
   const trackPanelRef = useRef<HTMLDivElement>(null);
   const [renderOpen, setRenderOpen] = useState(false);
+  const [autoCutOpen, setAutoCutOpen] = useState(false);
   const [rightTab, setRightTab] = useState<"assets" | "captions">("assets");
   useTimelineHotkeys();
 
@@ -56,9 +58,19 @@ export function TimelineScreen() {
       <ScreenHeader
         title="Timeline"
         actions={
-          <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
-            Render
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<Scissors size={12} />}
+              onClick={() => setAutoCutOpen(true)}
+            >
+              Auto-cut
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
+              Render
+            </Button>
+          </div>
         }
       />
 
@@ -118,6 +130,7 @@ export function TimelineScreen() {
       </div>
 
       <RenderDialog open={renderOpen} onClose={() => setRenderOpen(false)} />
+      <AutoCutDialog open={autoCutOpen} onClose={() => setAutoCutOpen(false)} />
     </div>
   );
 }

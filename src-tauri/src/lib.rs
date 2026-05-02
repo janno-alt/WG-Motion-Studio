@@ -1,4 +1,5 @@
 mod assets;
+mod audio;
 mod commands;
 mod db;
 mod error;
@@ -73,6 +74,8 @@ pub fn run() {
             assets::list_asset_tags,
             assets::set_asset_tags,
             assets::search_assets,
+            // Audio analysis
+            audio::silence::detect_silence_in_asset,
             // Timeline
             timeline::load_timeline,
             timeline::save_timeline,

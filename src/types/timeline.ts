@@ -61,6 +61,7 @@ export interface RenderPreset {
   videoBitrate: string;
   audioCodec: string;
   audioBitrate: string;
+  loudnormLufs: number | null;
 }
 
 export const REEL_9_16: RenderPreset = {
@@ -72,6 +73,22 @@ export const REEL_9_16: RenderPreset = {
   videoBitrate: "8M",
   audioCodec: "aac",
   audioBitrate: "192k",
+  loudnormLufs: -16,
+};
+
+export interface SilenceRange {
+  startSec: number;
+  endSec: number;
+}
+
+export interface SilenceParams {
+  thresholdDb: number;
+  minDurationSec: number;
+}
+
+export const DEFAULT_SILENCE_PARAMS: SilenceParams = {
+  thresholdDb: -30,
+  minDurationSec: 1.0,
 };
 
 export interface RenderRequest {

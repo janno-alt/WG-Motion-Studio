@@ -8,6 +8,8 @@ import type {
   Project,
   RenderProgressEvent,
   RenderRequest,
+  SilenceParams,
+  SilenceRange,
   Timeline,
   Track,
   WhisperModel,
@@ -100,6 +102,10 @@ export const commands = {
     invoke<string[]>("set_asset_tags", { assetId, tags }),
   searchAssets: (projectId: string, query: string) =>
     invoke<{ asset: Asset; tags: string[] }[]>("search_assets", { projectId, query }),
+
+  // Audio analysis
+  detectSilenceInAsset: (assetId: string, params: SilenceParams | null) =>
+    invoke<SilenceRange[]>("detect_silence_in_asset", { assetId, params }),
 
   // Timeline
   loadTimeline: (projectId: string) =>

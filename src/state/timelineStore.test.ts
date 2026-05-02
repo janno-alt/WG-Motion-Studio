@@ -104,6 +104,68 @@ describe("timelineStore", () => {
     expect(captions[1]?.startSec).toBe(1.5);
   });
 
+  it("applyRippleAutoCut splits out silent ranges and shifts followers left", async () => {
+    await useTimelineStore.getState().load("p1");
+    const id = useTimelineStore.getState().addClip({
+      trackId: "v1",
+      assetId: "a1",
+      kind: "video",
+      startSec: 0,
+      durationSec: 10,
+      inPointSec: 0,
+      outPointSec: 10,
+      data: null,
+    });
+    const followerId = useTimelineStore.getState().addClip({
+      trackId: "v1",
+      assetId: "a1",
+      kind: "video",
+      startSec: 10,
+      durationSec: 4,
+      inPointSec: 0,
+      outPointSec: 4,
+      data: null,
+    });
+
+    const removed = useTimelineStore.getState().applyRippleAutoCut(id, [
+      { startSec: 3, endSec: 5 },
+      { startSec: 7, endSec: 8.5 },
+    ]);
+
+    expect(removed).toBeCloseTo(3.5);
+
+    const state = useTimelineStore.getState();
+    const v1Clips = state.clips
+      .filter((c) => c.trackId === "v1")
+      .sort((a, b) => a.startSec - b.startSec);
+
+    // 3 kept ranges from the original + 1 follower = 4 clips
+    expect(v1Clips.length).toBe(4);
+
+    expect(v1Clips[0]?.startSec).toBeCloseTo(0);
+    expect(v1Clips[0]?.durationSec).toBeCloseTo(3);
+    expect(v1Clips[1]?.startSec).toBeCloseTo(3);
+    expect(v1Clips[1]?.durationSec).toBeCloseTo(2);
+    expect(v1Clips[2]?.startSec).toBeCloseTo(5);
+    expect(v1Clips[2]?.durationSec).toBeCloseTo(1.5);
+
+    // follower shifted left by 3.5
+    const follower = v1Clips.find((c) => c.id === followerId);
+    expect(follower?.startSec).toBeCloseTo(6.5);
+  });
+
+  it("setTrackVolume clamps to [0, 2]", async () => {
+    await useTimelineStore.getState().load("p1");
+    useTimelineStore.getState().setTrackVolume("a1", 5);
+    expect(
+      useTimelineStore.getState().tracks.find((t) => t.id === "a1")?.volume,
+    ).toBe(2);
+    useTimelineStore.getState().setTrackVolume("a1", -1);
+    expect(
+      useTimelineStore.getState().tracks.find((t) => t.id === "a1")?.volume,
+    ).toBe(0);
+  });
+
   it("undo/redo roundtrips a split", async () => {
     await useTimelineStore.getState().load("p1");
     const id = useTimelineStore.getState().addClip({
