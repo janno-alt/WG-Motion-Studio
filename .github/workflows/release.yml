@@ -39,16 +39,37 @@ jobs:
           set -euo pipefail
           BIN_DIR="src-tauri/binaries"
           mkdir -p "$BIN_DIR"
-          # ffmpeg + ffprobe from Homebrew (already include VideoToolbox).
-          brew install ffmpeg
-          cp "$(which ffmpeg)" "$BIN_DIR/ffmpeg-aarch64-apple-darwin"
-          cp "$(which ffprobe)" "$BIN_DIR/ffprobe-aarch64-apple-darwin"
+
+          # ffmpeg + ffprobe must be STATICALLY linked: the previous brew-
+          # install + cp approach shipped Homebrew binaries that are
+          # dynamically linked to /opt/homebrew/Cellar/ffmpeg/8.1_1/lib/*.dylib.
+          # Those paths only exist on the build runner — on a fresh user
+          # machine the loader can't find them and import fails with
+          # "Library not loaded: ... libavdevice.62.dylib".
+          # @ffmpeg-installer / @ffprobe-installer ship pre-built static
+          # binaries via npm with platform-aware optional deps, including
+          # darwin-arm64.
+          npm install --no-save @ffmpeg-installer/ffmpeg @ffprobe-installer/ffprobe
+          FFMPEG_PATH=$(node -e "console.log(require('@ffmpeg-installer/ffmpeg').path)")
+          FFPROBE_PATH=$(node -e "console.log(require('@ffprobe-installer/ffprobe').path)")
+          cp "$FFMPEG_PATH"  "$BIN_DIR/ffmpeg-aarch64-apple-darwin"
+          cp "$FFPROBE_PATH" "$BIN_DIR/ffprobe-aarch64-apple-darwin"
           chmod +x "$BIN_DIR/ffmpeg-aarch64-apple-darwin" "$BIN_DIR/ffprobe-aarch64-apple-darwin"
-          # whisper.cpp built from source via cmake. The CLI binary that used
-          # to be named `main` is now `whisper-cli` and lives at
-          # build/bin/whisper-cli (the legacy `main` is just a deprecation stub).
+          # Sanity-check: binaries should run without referencing /opt/homebrew/.
+          "$BIN_DIR/ffmpeg-aarch64-apple-darwin"  -hide_banner -version | head -1
+          "$BIN_DIR/ffprobe-aarch64-apple-darwin" -hide_banner -version | head -1
+          ! otool -L "$BIN_DIR/ffmpeg-aarch64-apple-darwin"  | grep -q "/opt/homebrew" \
+            || (echo "❌ ffmpeg still links to /opt/homebrew dylibs" && exit 1)
+          ! otool -L "$BIN_DIR/ffprobe-aarch64-apple-darwin" | grep -q "/opt/homebrew" \
+            || (echo "❌ ffprobe still links to /opt/homebrew dylibs" && exit 1)
+
+          # whisper.cpp built from source. -DBUILD_SHARED_LIBS=OFF keeps
+          # the whisper-cli binary self-contained so we don't recreate the
+          # same dylib problem with libwhisper.dylib / libggml.dylib.
           git clone --depth=1 https://github.com/ggerganov/whisper.cpp /tmp/whisper.cpp
-          cmake -B /tmp/whisper.cpp/build -S /tmp/whisper.cpp -DCMAKE_BUILD_TYPE=Release
+          cmake -B /tmp/whisper.cpp/build -S /tmp/whisper.cpp \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF
           cmake --build /tmp/whisper.cpp/build --config Release -j --target whisper-cli
           cp /tmp/whisper.cpp/build/bin/whisper-cli "$BIN_DIR/whisper-aarch64-apple-darwin"
           chmod +x "$BIN_DIR/whisper-aarch64-apple-darwin"
