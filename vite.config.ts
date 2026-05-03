@@ -35,6 +35,9 @@ export default defineConfig(async () => ({
   build: {
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
-    sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    // Always emit sourcemaps so React stack traces are readable in the
+    // production build's devtools. Cost is bundle size + ~3 MB shipped
+    // sourcemap files; trivial for an internal-only Tauri app.
+    sourcemap: true,
   },
 }));
