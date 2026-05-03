@@ -55,3 +55,30 @@ export interface DownloadStockInput {
   projectId: string;
   clip: StockClip;
 }
+
+/* ------------------------------------------------------------------ */
+/*  AI BrandKit Generator                                              */
+/* ------------------------------------------------------------------ */
+
+import type { BrandColors, BrandTypography, VoiceTone } from "./brandKit";
+
+export interface BrandKitDraft {
+  name?: string;
+  clientName?: string;
+  colors?: Partial<BrandColors>;
+  typography?: Partial<BrandTypography>;
+  voiceProfile?: { tone?: VoiceTone; notes?: string };
+  musicStyles?: string[];
+  styleNotes?: string;
+  rationale: string;
+}
+
+export interface AiBrandKitFromUrlInput {
+  url: string;
+  instructions?: string;
+}
+
+export interface AiBrandKitFromImagesInput {
+  paths: string[];
+  instructions?: string;
+}

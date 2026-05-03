@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
-import { Palette, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -44,22 +44,9 @@ export function NewProjectDialog({ open, onClose }: Props) {
     }
   }, [open, loadKits]);
 
-  // Default to the first kit once they're loaded.
-  useEffect(() => {
-    if (open && brandKits.length > 0 && !brandKitId) {
-      setBrandKitId(brandKits[0]?.id ?? null);
-    }
-  }, [open, brandKits, brandKitId]);
-
-  const noBrandKits = brandKits.length === 0;
-
   const create = async () => {
     if (!name.trim()) {
       toast.error("Give the project a name.");
-      return;
-    }
-    if (!brandKitId) {
-      toast.error("Pick a brand kit.");
       return;
     }
     setSubmitting(true);
@@ -93,11 +80,6 @@ export function NewProjectDialog({ open, onClose }: Props) {
     }
   };
 
-  const goToBrandKits = () => {
-    onClose();
-    navigate("/brand-kits");
-  };
-
   const selectedKit = useMemo(
     () => brandKits.find((k) => k.id === brandKitId) ?? null,
     [brandKits, brandKitId],
@@ -122,28 +104,7 @@ export function NewProjectDialog({ open, onClose }: Props) {
             </button>
           </div>
 
-          {noBrandKits ? (
-            <div className="rounded-default border border-danger/30 bg-danger/5 p-3 text-2xs">
-              <div className="text-text-primary">
-                No brand kits yet — every project belongs to one.
-              </div>
-              <div className="mt-1 text-text-muted">
-                Create your first brand kit (logo, colours, fonts, voice profile),
-                then come back here.
-              </div>
-              <div className="mt-2 flex justify-end">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leadingIcon={<Palette size={12} />}
-                  onClick={goToBrandKits}
-                >
-                  Open brand kits
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
+          <div className="space-y-3">
               <Field label="Project name">
                 <Input
                   value={name}
@@ -159,6 +120,7 @@ export function NewProjectDialog({ open, onClose }: Props) {
                   onChange={(e) => setBrandKitId(e.target.value || null)}
                   className="h-8 w-full rounded-default border border-border-subtle bg-surface-0 px-2 text-xs text-text-primary focus:border-accent-primary focus:outline-none"
                 >
+                  <option value="">None — use defaults</option>
                   {brandKits.map((k) => (
                     <option key={k.id} value={k.id}>
                       {k.name}
@@ -179,7 +141,12 @@ export function NewProjectDialog({ open, onClose }: Props) {
                     />
                     <span>{selectedKit.colors.accent}</span>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="mt-1 text-2xs text-text-muted">
+                    Renders will use the default lime / coral palette. You can attach
+                    a brand kit later from the timeline.
+                  </div>
+                )}
               </Field>
 
               <Field label="Format">
@@ -222,24 +189,21 @@ export function NewProjectDialog({ open, onClose }: Props) {
                   ))}
                 </div>
               </Field>
-            </div>
-          )}
+          </div>
 
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
-            {!noBrandKits ? (
-              <Button
-                variant="primary"
-                size="sm"
-                leadingIcon={<Plus size={12} />}
-                onClick={() => void create()}
-                disabled={submitting || !name.trim() || !brandKitId}
-              >
-                {submitting ? "Creating…" : "Create project"}
-              </Button>
-            ) : null}
+            <Button
+              variant="primary"
+              size="sm"
+              leadingIcon={<Plus size={12} />}
+              onClick={() => void create()}
+              disabled={submitting || !name.trim()}
+            >
+              {submitting ? "Creating…" : "Create project"}
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

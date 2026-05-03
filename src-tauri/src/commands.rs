@@ -31,7 +31,8 @@ pub fn get_app_paths(app: AppHandle) -> AppResult<AppPaths> {
 pub struct Project {
     pub id: String,
     pub name: String,
-    pub client_id: String,
+    #[serde(default)]
+    pub client_id: Option<String>,
     pub srt_path: String,
     #[serde(default)]
     pub video_path: Option<String>,
@@ -47,7 +48,7 @@ pub struct Project {
 struct ProjectRow {
     id: String,
     name: String,
-    client_id: String,
+    client_id: Option<String>,
     srt_path: String,
     video_path: Option<String>,
     video_format: String,
@@ -200,30 +201,23 @@ pub fn delete_project(db: State<'_, DbState>, project_id: String) -> AppResult<(
 pub fn list_brand_kits(db: State<'_, DbState>) -> AppResult<Vec<Value>> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn.prepare(
-        "SELECT data, client_name, logo_path FROM brand_kits ORDER BY updated_at DESC",
+        "SELECT data, client_name FROM brand_kits ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, Option<String>>(1)?,
-            row.get::<_, Option<String>>(2)?,
         ))
     })?;
     let mut out = Vec::new();
     for r in rows {
-        let (data, client_name, logo_path) = r?;
+        let (data, client_name) = r?;
         let mut value: Value = serde_json::from_str(&data)?;
         if let Some(obj) = value.as_object_mut() {
             if obj.get("clientName").is_none() {
                 obj.insert(
                     "clientName".into(),
                     client_name.map(Value::String).unwrap_or(Value::Null),
-                );
-            }
-            if obj.get("logoPath").is_none() {
-                obj.insert(
-                    "logoPath".into(),
-                    logo_path.map(Value::String).unwrap_or(Value::Null),
                 );
             }
         }
@@ -235,11 +229,11 @@ pub fn list_brand_kits(db: State<'_, DbState>) -> AppResult<Vec<Value>> {
 #[tauri::command]
 pub fn get_brand_kit(db: State<'_, DbState>, brand_kit_id: String) -> AppResult<Value> {
     let conn = db.conn.lock().unwrap();
-    let (data, client_name, logo_path): (String, Option<String>, Option<String>) = conn
+    let (data, client_name): (String, Option<String>) = conn
         .query_row(
-            "SELECT data, client_name, logo_path FROM brand_kits WHERE id = ?1",
+            "SELECT data, client_name FROM brand_kits WHERE id = ?1",
             params![brand_kit_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| match e {
             rusqlite::Error::QueryReturnedNoRows => {
@@ -253,12 +247,6 @@ pub fn get_brand_kit(db: State<'_, DbState>, brand_kit_id: String) -> AppResult<
             obj.insert(
                 "clientName".into(),
                 client_name.map(Value::String).unwrap_or(Value::Null),
-            );
-        }
-        if obj.get("logoPath").is_none() {
-            obj.insert(
-                "logoPath".into(),
-                logo_path.map(Value::String).unwrap_or(Value::Null),
             );
         }
     }
@@ -281,22 +269,17 @@ pub fn save_brand_kit(db: State<'_, DbState>, brand_kit: Value) -> AppResult<Val
         .get("clientName")
         .and_then(|v| v.as_str())
         .map(String::from);
-    let logo_path = brand_kit
-        .get("logoPath")
-        .and_then(|v| v.as_str())
-        .map(String::from);
     let now = now_ms();
     let data = serde_json::to_string(&brand_kit)?;
     let conn = db.conn.lock().unwrap();
     conn.execute(
-        "INSERT INTO brand_kits (id, name, data, client_name, logo_path, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+        "INSERT INTO brand_kits (id, name, data, client_name, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name,
                                        data = excluded.data,
                                        client_name = excluded.client_name,
-                                       logo_path = excluded.logo_path,
                                        updated_at = excluded.updated_at",
-        params![id, name, data, client_name, logo_path, now],
+        params![id, name, data, client_name, now],
     )?;
     Ok(brand_kit)
 }
@@ -345,31 +328,6 @@ pub fn copy_srt_into_project(
 ) -> AppResult<String> {
     let dest = fs_ops::copy_srt_into_project(&app, &project_id, &PathBuf::from(&source_path))?;
     Ok(dest.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-pub fn save_brand_kit_logo(
-    app: AppHandle,
-    brand_kit_id: String,
-    source_path: String,
-) -> AppResult<String> {
-    let p = fs_ops::save_brand_kit_asset(&app, &brand_kit_id, &PathBuf::from(&source_path), "logo")?;
-    Ok(p.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-pub fn save_brand_kit_reference(
-    app: AppHandle,
-    brand_kit_id: String,
-    source_path: String,
-) -> AppResult<String> {
-    let p = fs_ops::save_brand_kit_asset(&app, &brand_kit_id, &PathBuf::from(&source_path), "ref")?;
-    Ok(p.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-pub fn delete_brand_kit_asset(path: String) -> AppResult<()> {
-    fs_ops::delete_brand_kit_asset(&PathBuf::from(path))
 }
 
 #[tauri::command]

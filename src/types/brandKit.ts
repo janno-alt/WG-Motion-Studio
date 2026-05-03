@@ -21,7 +21,6 @@ export interface BrandKit {
   id: string;
   name: string;
   clientName: string | null;
-  logoPath: string | null;
   colors: BrandColors;
   typography: BrandTypography;
   voiceProfile: VoiceProfile;
@@ -55,7 +54,6 @@ export function defaultBrandKit(id: string, name: string): BrandKit {
     id,
     name,
     clientName: null,
-    logoPath: null,
     colors: { ...DEFAULT_BRAND_COLORS },
     typography: { ...DEFAULT_BRAND_TYPOGRAPHY },
     voiceProfile: { ...DEFAULT_VOICE_PROFILE },

@@ -43,46 +43,6 @@ pub fn read_srt(handle: &AppHandle, project_id: &str) -> AppResult<String> {
         .map_err(|e| AppError::Other(format!("read srt {}: {e}", p.display())))
 }
 
-/// BrandKit asset directory (logo, reference images): stable across projects.
-pub fn brand_kit_assets_dir(handle: &AppHandle, brand_kit_id: &str) -> AppResult<PathBuf> {
-    let dir = paths::config_dir(handle)?.join("brand_kits").join(brand_kit_id);
-    fs::create_dir_all(&dir)?;
-    Ok(dir)
-}
-
-pub fn save_brand_kit_asset(
-    handle: &AppHandle,
-    brand_kit_id: &str,
-    source: &Path,
-    prefix: &str,
-) -> AppResult<PathBuf> {
-    let dir = brand_kit_assets_dir(handle, brand_kit_id)?;
-    let ext = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png")
-        .to_string();
-    let mut n = 1;
-    loop {
-        let candidate = dir.join(format!("{prefix}-{n}.{ext}"));
-        if !candidate.exists() {
-            fs::copy(source, &candidate)?;
-            return Ok(candidate);
-        }
-        n += 1;
-        if n > 9999 {
-            return Err(AppError::Other("too many brand kit assets".into()));
-        }
-    }
-}
-
-pub fn delete_brand_kit_asset(path: &Path) -> AppResult<()> {
-    if path.exists() {
-        fs::remove_file(path)?;
-    }
-    Ok(())
-}
-
 pub fn read_string(path: &Path) -> AppResult<String> {
     fs::read_to_string(path)
         .map_err(|e| AppError::Other(format!("read {}: {e}", path.display())))

@@ -5795,9 +5795,10 @@ dependencies = [
 
 [[package]]
 name = "wg-video-studio"
-version = "0.1.0-pivot.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "futures-util",
  "keyring",
  "nanoid",

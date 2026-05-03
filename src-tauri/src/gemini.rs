@@ -24,6 +24,15 @@ pub struct GeminiResponse {
     pub usage: GeminiUsage,
 }
 
+/// One element in a multimodal user prompt. Text parts go straight in;
+/// inline-image parts hold base64-encoded bytes + a `mime_type` string
+/// (e.g. `image/png`, `image/jpeg`, `image/webp`). Both map onto Gemini's
+/// `contents[].parts` array shape.
+pub enum ContentPart {
+    Text(String),
+    InlineImage { mime_type: String, base64_data: String },
+}
+
 pub async fn structured_generate(
     api_key: &str,
     model: &str,
@@ -31,7 +40,34 @@ pub async fn structured_generate(
     user_prompt: &str,
     response_schema: Value,
 ) -> AppResult<GeminiResponse> {
+    structured_generate_with_parts(
+        api_key,
+        model,
+        system_prompt,
+        vec![ContentPart::Text(user_prompt.to_string())],
+        response_schema,
+    )
+    .await
+}
+
+pub async fn structured_generate_with_parts(
+    api_key: &str,
+    model: &str,
+    system_prompt: &str,
+    parts: Vec<ContentPart>,
+    response_schema: Value,
+) -> AppResult<GeminiResponse> {
     let url = format!("{ENDPOINT_BASE}/{model}:generateContent?key={api_key}");
+
+    let json_parts: Vec<Value> = parts
+        .into_iter()
+        .map(|p| match p {
+            ContentPart::Text(t) => json!({ "text": t }),
+            ContentPart::InlineImage { mime_type, base64_data } => json!({
+                "inlineData": { "mimeType": mime_type, "data": base64_data }
+            }),
+        })
+        .collect();
 
     let body = json!({
         "systemInstruction": {
@@ -39,7 +75,7 @@ pub async fn structured_generate(
         },
         "contents": [{
             "role": "user",
-            "parts": [{ "text": user_prompt }]
+            "parts": json_parts
         }],
         "generationConfig": {
             "responseMimeType": "application/json",
@@ -50,7 +86,7 @@ pub async fn structured_generate(
     });
 
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
+        .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| AppError::Other(format!("reqwest build: {e}")))?;
 

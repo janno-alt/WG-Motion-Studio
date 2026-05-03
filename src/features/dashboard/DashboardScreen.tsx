@@ -211,7 +211,7 @@ function GridView({
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 p-4">
       {projects.map((p) => (
-        <ProjectCard key={p.id} project={p} theme={themeById.get(p.clientId)} />
+        <ProjectCard key={p.id} project={p} theme={p.clientId ? themeById.get(p.clientId) : undefined} />
       ))}
     </div>
   );
@@ -228,7 +228,7 @@ function ProjectCard({ project, theme }: { project: Project; theme: BrandKit | u
           <span
             className="h-3 w-3 shrink-0 rounded-full border border-border-subtle"
             style={{ background: theme?.colors.primary ?? "#2A2A2A" }}
-            title={theme?.name ?? project.clientId}
+            title={theme?.name ?? (project.clientId ?? "No brand kit")}
           />
           <div className="min-w-0 truncate text-sm font-medium text-text-primary">{project.name}</div>
         </div>
@@ -266,7 +266,7 @@ function ListView({
       </thead>
       <tbody>
         {projects.map((p) => {
-          const theme = themeById.get(p.clientId);
+          const theme = p.clientId ? themeById.get(p.clientId) : undefined;
           return (
             <tr key={p.id} className="border-t border-border-subtle hover:bg-surface-2">
               <td className="px-4 py-2">
@@ -280,7 +280,7 @@ function ListView({
                     className="h-2.5 w-2.5 rounded-full border border-border-subtle"
                     style={{ background: theme?.colors.primary ?? "#2A2A2A" }}
                   />
-                  {theme?.name ?? p.clientId}
+                  {theme?.name ?? (p.clientId ?? <span className="italic text-text-muted">No brand kit</span>)}
                 </span>
               </td>
               <td className="px-4 py-2 text-xs text-text-secondary">{p.videoFormat}</td>

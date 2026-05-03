@@ -174,6 +174,35 @@ const MIGRATIONS: &[(i32, &str)] = &[
         );
         "#,
     ),
+    (
+        5,
+        r#"
+        -- Rebuild projects to make client_id nullable. The 12-step procedure
+        -- collapses to "create new, copy, drop old, rename" because we have
+        -- foreign_keys disabled at the connection level around the migration.
+        CREATE TABLE projects_new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          client_id TEXT,
+          srt_path TEXT NOT NULL,
+          video_path TEXT,
+          video_format TEXT NOT NULL,
+          video_duration REAL NOT NULL,
+          fps INTEGER NOT NULL,
+          settings TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO projects_new SELECT * FROM projects;
+        DROP TABLE projects;
+        ALTER TABLE projects_new RENAME TO projects;
+
+        -- BrandKit no longer carries a logo (handled in the editor by removing
+        -- the section + the FS helpers that wrote into brand_kits/<id>/logo-N).
+        ALTER TABLE brand_kits DROP COLUMN logo_path;
+        "#,
+    ),
 ];
 
 pub fn run(conn: &mut Connection) -> AppResult<()> {
@@ -191,10 +220,15 @@ pub fn run(conn: &mut Connection) -> AppResult<()> {
         if *version <= current {
             continue;
         }
+        // Disable FK enforcement around table rebuilds so DROP TABLE on a
+        // referenced parent doesn't fail. The migration body is responsible
+        // for leaving the DB in a referentially valid state by COMMIT time.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
         tx.execute("INSERT INTO schema_version (version) VALUES (?1)", [version])?;
         tx.commit()?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         eprintln!("[db] migration {version} applied");
     }
     Ok(())

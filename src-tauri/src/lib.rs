@@ -16,6 +16,7 @@ mod render_queue;
 mod secrets;
 mod stock;
 mod timeline;
+mod web_extract;
 mod whisper;
 
 use tauri::Manager;
@@ -56,9 +57,6 @@ pub fn run() {
             commands::get_brand_kit,
             commands::save_brand_kit,
             commands::delete_brand_kit,
-            commands::save_brand_kit_logo,
-            commands::save_brand_kit_reference,
-            commands::delete_brand_kit_asset,
             // Secrets
             commands::has_api_key,
             commands::set_api_key,
@@ -106,6 +104,8 @@ pub fn run() {
             ai::auto_broll_search,
             ai::download_stock_clip,
             ai::vibe_mode,
+            ai::ai_brand_kit_from_url,
+            ai::ai_brand_kit_from_images,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

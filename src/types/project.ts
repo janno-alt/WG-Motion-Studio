@@ -5,7 +5,8 @@ export type VideoFormat = "9:16" | "16:9" | "1:1";
 export interface Project {
   id: string;
   name: string;
-  clientId: string;
+  /** Optional reference to brand_kits.id; null when the project uses defaults. */
+  clientId: string | null;
   srtPath: string;
   videoPath?: string | null;
   videoFormat: VideoFormat;

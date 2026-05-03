@@ -1,8 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Save, Trash2 } from "lucide-react";
+import { ImagePlus, Save, Sparkles, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -13,8 +12,52 @@ import {
   DEFAULT_BRAND_TYPOGRAPHY,
   DEFAULT_VOICE_PROFILE,
   type BrandKit,
+  type BrandKitDraft,
   type VoiceTone,
 } from "@/types";
+import { AiBrandKitDialog } from "./AiBrandKitDialog";
+
+/**
+ * Merge an AI-generated draft into an existing BrandKit. Empty / missing
+ * fields in the draft are skipped — a blank suggestion never overwrites a
+ * value the user already typed. Non-empty draft fields overwrite, so the
+ * AI's "primary colour: #6772E5" replaces an existing default lime.
+ */
+export function mergeDraftIntoBrandKit(base: BrandKit, draft: BrandKitDraft): BrandKit {
+  const next: BrandKit = { ...base };
+  if (draft.name && draft.name.trim()) next.name = draft.name.trim();
+  if (draft.clientName !== undefined) next.clientName = draft.clientName?.trim() || null;
+  if (draft.colors) {
+    next.colors = {
+      primary: draft.colors.primary ?? next.colors.primary,
+      secondary: draft.colors.secondary ?? next.colors.secondary,
+      accent: draft.colors.accent ?? next.colors.accent,
+      background: draft.colors.background ?? next.colors.background,
+    };
+  }
+  if (draft.typography) {
+    next.typography = {
+      headlineFont: draft.typography.headlineFont ?? next.typography.headlineFont,
+      bodyFont: draft.typography.bodyFont ?? next.typography.bodyFont,
+    };
+  }
+  if (draft.voiceProfile) {
+    next.voiceProfile = {
+      tone: draft.voiceProfile.tone ?? next.voiceProfile.tone,
+      notes: draft.voiceProfile.notes ?? next.voiceProfile.notes,
+    };
+  }
+  if (draft.musicStyles && draft.musicStyles.length > 0) {
+    const merged = new Set([...next.musicStyles, ...draft.musicStyles]);
+    next.musicStyles = [...merged];
+  }
+  if (draft.styleNotes && draft.styleNotes.trim()) {
+    next.styleNotes = next.styleNotes.trim()
+      ? `${next.styleNotes}\n\n${draft.styleNotes.trim()}`
+      : draft.styleNotes.trim();
+  }
+  return next;
+}
 
 interface Props {
   brandKit: BrandKit;
@@ -35,6 +78,7 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
   const [draft, setDraft] = useState<BrandKit>(() => normalise(brandKit));
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const patch = <K extends keyof BrandKit>(key: K, value: BrandKit[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -64,20 +108,6 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
     }
   };
 
-  const pickLogo = async () => {
-    const picked = await open({
-      multiple: false,
-      filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "svg", "webp"] }],
-    });
-    if (!picked || typeof picked !== "string") return;
-    try {
-      const dest = await commands.saveBrandKitLogo(draft.id, picked);
-      patch("logoPath", dest);
-    } catch (err) {
-      toast.error(`Logo upload failed: ${String(err)}`);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <header className="flex items-end justify-between gap-3">
@@ -99,6 +129,14 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
           <Button
             variant="secondary"
             size="sm"
+            leadingIcon={<Sparkles size={12} />}
+            onClick={() => setAiOpen(true)}
+          >
+            Suggest with AI
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             leadingIcon={<Trash2 size={12} />}
             onClick={() => setConfirmDelete(true)}
           >
@@ -116,31 +154,14 @@ export function BrandKitEditor({ brandKit, onSaved, onDeleted }: Props) {
         </div>
       </header>
 
-      <Section title="Logo">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-default border border-border-subtle bg-surface-2"
-          >
-            {draft.logoPath ? (
-              <img
-                src={convertFileSrc(draft.logoPath)}
-                alt="Brand logo"
-                className="max-h-full max-w-full object-contain"
-              />
-            ) : (
-              <span className="text-2xs text-text-muted">No logo</span>
-            )}
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            leadingIcon={<ImagePlus size={12} />}
-            onClick={() => void pickLogo()}
-          >
-            {draft.logoPath ? "Replace logo" : "Upload logo"}
-          </Button>
-        </div>
-      </Section>
+      <AiBrandKitDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onApply={(d) => {
+          setDraft((prev) => mergeDraftIntoBrandKit(prev, d));
+          toast.success("AI suggestion applied — review and Save.");
+        }}
+      />
 
       <Section title="Colors">
         <div className="grid grid-cols-2 gap-3">
@@ -439,7 +460,6 @@ function normalise(kit: BrandKit): BrandKit {
   return {
     ...kit,
     clientName: kit.clientName ?? null,
-    logoPath: kit.logoPath ?? null,
     colors: { ...DEFAULT_BRAND_COLORS, ...(kit.colors ?? {}) },
     typography: { ...DEFAULT_BRAND_TYPOGRAPHY, ...(kit.typography ?? {}) },
     voiceProfile: { ...DEFAULT_VOICE_PROFILE, ...(kit.voiceProfile ?? {}) },

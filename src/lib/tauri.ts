@@ -1,11 +1,14 @@
 import { invoke as tauriInvoke, Channel } from "@tauri-apps/api/core";
 
 import type {
+  AiBrandKitFromImagesInput,
+  AiBrandKitFromUrlInput,
   Asset,
   AutoBRollInput,
   AutoHookInput,
   BRollResult,
   BrandKit,
+  BrandKitDraft,
   CaptionSegment,
   DownloadProgressEvent,
   DownloadStockInput,
@@ -61,12 +64,6 @@ export const commands = {
     invoke<BrandKit>("save_brand_kit", { brandKit }),
   deleteBrandKit: (brandKitId: string) =>
     invoke<void>("delete_brand_kit", { brandKitId }),
-  saveBrandKitLogo: (brandKitId: string, sourcePath: string) =>
-    invoke<string>("save_brand_kit_logo", { brandKitId, sourcePath }),
-  saveBrandKitReference: (brandKitId: string, sourcePath: string) =>
-    invoke<string>("save_brand_kit_reference", { brandKitId, sourcePath }),
-  deleteBrandKitAsset: (path: string) =>
-    invoke<void>("delete_brand_kit_asset", { path }),
 
   // Secrets
   hasApiKey: (provider: Provider) => invoke<boolean>("has_api_key", { provider }),
@@ -181,4 +178,8 @@ export const commands = {
   downloadStockClip: (input: DownloadStockInput) =>
     invoke<string>("download_stock_clip", { input }),
   vibeMode: (input: VibeModeInput) => invoke<VibeAdjustment>("vibe_mode", { input }),
+  aiBrandKitFromUrl: (input: AiBrandKitFromUrlInput) =>
+    invoke<BrandKitDraft>("ai_brand_kit_from_url", { input }),
+  aiBrandKitFromImages: (input: AiBrandKitFromImagesInput) =>
+    invoke<BrandKitDraft>("ai_brand_kit_from_images", { input }),
 } as const;
