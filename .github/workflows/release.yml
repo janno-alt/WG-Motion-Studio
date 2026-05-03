@@ -80,12 +80,34 @@ jobs:
             fi
           fi
 
+      - name: Normalize signing key (strip trailing whitespace)
+        env:
+          RAW_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          # GitHub Secrets sometimes preserve a trailing newline from the
+          # paste source; Tauri's signer then fails to base64-decode silently
+          # and skips signing without any visible error. Strip all whitespace
+          # so the inner value is exactly the base64 blob Tauri expects, then
+          # re-export it via GITHUB_ENV (with mask) so subsequent steps see
+          # the cleaned value.
+          CLEAN=$(printf '%s' "$RAW_KEY" | tr -d '[:space:]')
+          echo "::add-mask::$CLEAN"
+          echo "TAURI_SIGNING_PRIVATE_KEY=$CLEAN" >> "$GITHUB_ENV"
+          echo "Normalized key length: ${#CLEAN} (was ${#RAW_KEY})"
+          # Re-verify decode after stripping
+          if printf '%s' "$CLEAN" | base64 -d > /tmp/key-clean 2>/dev/null; then
+            echo "✅ Cleaned key decodes; first line: $(head -1 /tmp/key-clean)"
+            rm -f /tmp/key-clean
+          else
+            echo "❌ Cleaned key still not valid base64 — secret content is wrong, regenerate + repaste"
+          fi
+
       - name: Build + sign + upload
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # TAURI_SIGNING_PRIVATE_KEY is inherited from GITHUB_ENV (cleaned).
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "WG Video Studio ${{ github.ref_name }}"
