@@ -84,7 +84,7 @@ function VideoLayer({
           return (
             <Sequence key={clip.id} from={from} durationInFrames={dur}>
               {clip.kind === "video" ? (
-                <OffthreadVideo src={src} startFrom={startFrom} muted />
+                <OffthreadVideo src={src} startFrom={startFrom} />
               ) : (
                 <Img src={src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               )}

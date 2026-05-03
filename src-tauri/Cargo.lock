@@ -5795,7 +5795,7 @@ dependencies = [
 
 [[package]]
 name = "wg-video-studio"
-version = "0.1.2"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

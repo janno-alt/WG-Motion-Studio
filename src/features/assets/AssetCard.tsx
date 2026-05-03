@@ -50,8 +50,18 @@ export function AssetCard({ asset, tags, onAdd, onDelete, onTagsChange }: Props)
     }
   };
 
+  const onDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("application/x-wg-asset-id", asset.id);
+    e.dataTransfer.setData("text/plain", asset.name);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   return (
-    <article className="flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-1 shadow-panel">
+    <article
+      draggable
+      onDragStart={onDragStart}
+      className="flex cursor-grab flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-1 shadow-panel active:cursor-grabbing"
+    >
       <div className="relative aspect-video overflow-hidden bg-black">
         {asset.thumbnailPath ? (
           <img

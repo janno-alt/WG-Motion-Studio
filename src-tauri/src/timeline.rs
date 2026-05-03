@@ -107,13 +107,17 @@ pub fn create_default_tracks(
     if !existing.is_empty() {
         return Ok(existing);
     }
+    // sort_order controls layering for the renderer / composition: higher
+    // sort_order = drawn last = on top. V3 sits visually on top of V1.
+    // Visual track-list order in the UI is reversed independently.
     let defs = [
         ("video", "V1", 0i64),
         ("video", "V2", 1),
         ("video", "V3", 2),
         ("audio", "A1", 3),
         ("audio", "A2", 4),
-        ("captions", "Captions", 5),
+        ("audio", "A3", 5),
+        ("captions", "Captions", 6),
     ];
     for (kind, name, order) in &defs {
         let id = format!("trk-{}", crate::commands::now_ms() + order);

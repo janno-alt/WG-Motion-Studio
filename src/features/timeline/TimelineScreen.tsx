@@ -56,6 +56,19 @@ export function TimelineScreen() {
 
   const trackPanelWidth = durationSec * zoom;
 
+  // Visual order (top → bottom): Captions, V3, V2, V1, A1, A2, A3.
+  // The compositor still uses sort_order for z-layering (V3 on top).
+  const visualTracks = useMemo(() => {
+    const captions = tracks.filter((t) => t.kind === "captions");
+    const videos = [...tracks.filter((t) => t.kind === "video")].sort(
+      (a, b) => b.sortOrder - a.sortOrder,
+    );
+    const audios = [...tracks.filter((t) => t.kind === "audio")].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+    return [...captions, ...videos, ...audios];
+  }, [tracks]);
+
   if (!projectId) {
     return <div className="p-6 text-sm text-text-muted">No project selected.</div>;
   }
@@ -151,7 +164,7 @@ export function TimelineScreen() {
           <div className="w-24 shrink-0 border-r border-b border-border-subtle bg-surface-1" />
           <TimelineRuler width={trackPanelWidth} durationSec={durationSec} />
         </div>
-        {tracks.map((t) => (
+        {visualTracks.map((t) => (
           <Track
             key={t.id}
             track={t}
