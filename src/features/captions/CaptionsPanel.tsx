@@ -8,13 +8,17 @@ import type { Asset, WhisperProgressEvent } from "@/types";
 import { useAssetsStore } from "@/state/assetsStore";
 import { useTimelineStore } from "@/state/timelineStore";
 
+const EMPTY_ASSETS: Asset[] = [];
+
 export function CaptionsPanel() {
   const projectId = useTimelineStore((s) => s.projectId);
   const clips = useTimelineStore((s) => s.clips);
   const tracks = useTimelineStore((s) => s.tracks);
   const addCaptionsFromSegments = useTimelineStore((s) => s.addCaptionsFromSegments);
   const saveSnapshot = useTimelineStore((s) => s.saveSnapshot);
-  const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const assets = useAssetsStore((s) =>
+    projectId ? s.byProject[projectId] ?? EMPTY_ASSETS : EMPTY_ASSETS,
+  );
 
   const [running, setRunning] = useState(false);
   const [stage, setStage] = useState<string>("");

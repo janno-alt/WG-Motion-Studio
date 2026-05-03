@@ -7,8 +7,10 @@ import { useAssetsStore } from "@/state/assetsStore";
 import { useBrandKitsStore } from "@/state/brandKitsStore";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+import type { Asset } from "@/types";
 
 const PREVIEW_FPS = 30;
+const EMPTY_ASSETS: Asset[] = [];
 
 interface Props {
   width: number;
@@ -21,7 +23,9 @@ export function PreviewPane({ width, height }: Props) {
   const clips = useTimelineStore((s) => s.clips);
   const playheadSec = useTimelineStore((s) => s.playheadSec);
   const setPlayhead = useTimelineStore((s) => s.setPlayhead);
-  const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const assets = useAssetsStore((s) =>
+    projectId ? s.byProject[projectId] ?? EMPTY_ASSETS : EMPTY_ASSETS,
+  );
   const projects = useProjectsStore((s) => s.projects);
   const brandKits = useBrandKitsStore((s) => s.brandKits);
 

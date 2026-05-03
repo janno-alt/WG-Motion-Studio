@@ -8,6 +8,8 @@ import { Input } from "@/components/Input";
 import { commands } from "@/lib/tauri";
 import { useAssetsStore } from "@/state/assetsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+
+const EMPTY_ASSETS: Asset[] = [];
 import {
   DEFAULT_SILENCE_PARAMS,
   type Asset,
@@ -26,7 +28,9 @@ export function AutoCutDialog({ open, onClose }: Props) {
   const tracks = useTimelineStore((s) => s.tracks);
   const applyRippleAutoCut = useTimelineStore((s) => s.applyRippleAutoCut);
   const saveSnapshot = useTimelineStore((s) => s.saveSnapshot);
-  const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const assets = useAssetsStore((s) =>
+    projectId ? s.byProject[projectId] ?? EMPTY_ASSETS : EMPTY_ASSETS,
+  );
 
   const [params, setParams] = useState<SilenceParams>(DEFAULT_SILENCE_PARAMS);
   const [ranges, setRanges] = useState<SilenceRange[] | null>(null);

@@ -10,6 +10,9 @@ import { useAssetsStore } from "@/state/assetsStore";
 import { useBrandKitsStore } from "@/state/brandKitsStore";
 import { useProjectsStore } from "@/state/projectsStore";
 import { useTimelineStore } from "@/state/timelineStore";
+import type { Asset } from "@/types";
+
+const EMPTY_ASSETS: Asset[] = [];
 
 interface Props {
   open: boolean;
@@ -22,7 +25,9 @@ export function FcpxmlExportDialog({ open, onClose }: Props) {
   const projectId = useTimelineStore((s) => s.projectId);
   const tracks = useTimelineStore((s) => s.tracks);
   const clips = useTimelineStore((s) => s.clips);
-  const assets = useAssetsStore((s) => (projectId ? s.byProject[projectId] ?? [] : []));
+  const assets = useAssetsStore((s) =>
+    projectId ? s.byProject[projectId] ?? EMPTY_ASSETS : EMPTY_ASSETS,
+  );
   const projects = useProjectsStore((s) => s.projects);
   const brandKits = useBrandKitsStore((s) => s.brandKits);
 

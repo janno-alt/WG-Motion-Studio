@@ -1,6 +1,6 @@
 [package]
 name = "wg-video-studio"
-version = "0.1.7"
+version = "0.1.8"
 description = "WG Video Studio"
 authors = ["WG-Digital"]
 edition = "2021"
