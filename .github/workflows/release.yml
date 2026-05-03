@@ -53,6 +53,33 @@ jobs:
           cp /tmp/whisper.cpp/build/bin/whisper-cli "$BIN_DIR/whisper-aarch64-apple-darwin"
           chmod +x "$BIN_DIR/whisper-aarch64-apple-darwin"
 
+      - name: Verify signing secrets reach the runner
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # Print only lengths / first 8 chars of the key — never the value.
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "❌ TAURI_SIGNING_PRIVATE_KEY is EMPTY"
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY present, length=${#TAURI_SIGNING_PRIVATE_KEY}, prefix=$(printf %.8s "$TAURI_SIGNING_PRIVATE_KEY")"
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "❌ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is EMPTY"
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY_PASSWORD present, length=${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
+          fi
+          # Try to decode as base64 (Tauri stores the key file as base64).
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            if printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > /tmp/key-decoded 2>/dev/null; then
+              first_line=$(head -1 /tmp/key-decoded)
+              echo "✅ Key decodes; first line: $first_line"
+              rm -f /tmp/key-decoded
+            else
+              echo "⚠️ Key value is not valid base64 — Tauri will treat it as a path or fail to decode"
+            fi
+          fi
+
       - name: Build + sign + upload
         uses: tauri-apps/tauri-action@v0
         env:
