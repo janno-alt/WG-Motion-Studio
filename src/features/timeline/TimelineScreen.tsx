@@ -65,40 +65,32 @@ export function TimelineScreen() {
       <ScreenHeader
         title="Timeline"
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant={proMode ? "primary" : "secondary"}
-              size="sm"
-              leadingIcon={<Sliders size={12} />}
+          <div className="flex items-center gap-1">
+            <IconButton
+              active={proMode}
+              icon={<Sliders size={14} />}
+              label="Pro mode"
+              hint="Lazy-loads Theatre.js studio"
               onClick={() => setProMode((v) => !v)}
-              title="Lazy-loads Theatre.js studio"
-            >
-              Pro mode
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<Zap size={12} />}
+            />
+            <IconButton
+              icon={<Zap size={14} />}
+              label="Vibe"
+              hint="AI vibe-mode"
               onClick={() => setVibeOpen(true)}
-            >
-              Vibe
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<Scissors size={12} />}
+            />
+            <IconButton
+              icon={<Scissors size={14} />}
+              label="Auto-cut"
+              hint="Auto-cut silences"
               onClick={() => setAutoCutOpen(true)}
-            >
-              Auto-cut
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<Package size={12} />}
+            />
+            <IconButton
+              icon={<Package size={14} />}
+              label="Export"
+              hint="FCPXML export + bundle"
               onClick={() => setExportOpen(true)}
-            >
-              Export
-            </Button>
+            />
             <Button variant="primary" size="sm" onClick={() => setRenderOpen(true)}>
               Render
             </Button>
@@ -203,6 +195,37 @@ function TabButton({
       {active ? (
         <span className="absolute inset-x-3 bottom-0 h-0.5 bg-accent-primary" />
       ) : null}
+    </button>
+  );
+}
+
+function IconButton({
+  icon,
+  label,
+  hint,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  hint?: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={hint ? `${label} — ${hint}` : label}
+      aria-label={label}
+      className={[
+        "flex h-7 w-7 items-center justify-center rounded-default border transition-colors",
+        active
+          ? "border-accent-primary bg-accent-primary/15 text-accent-primary"
+          : "border-border-subtle bg-surface-1 text-text-secondary hover:border-border hover:text-text-primary",
+      ].join(" ")}
+    >
+      {icon}
     </button>
   );
 }
