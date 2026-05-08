@@ -67,7 +67,8 @@ export function AssetCard({ asset, tags, onAdd, onDelete, onTagsChange }: Props)
           <img
             src={convertFileSrc(asset.thumbnailPath)}
             alt={asset.name}
-            className="h-full w-full object-cover"
+            draggable={false}
+            className="pointer-events-none h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-muted">

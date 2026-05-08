@@ -14,6 +14,7 @@ export function Clip({ clip, pxPerSec }: Props) {
   const selected = useTimelineStore((s) => s.selectedClipIds.has(clip.id));
   const selectClip = useTimelineStore((s) => s.selectClip);
   const moveClip = useTimelineStore((s) => s.moveClip);
+  const moveClipToTrack = useTimelineStore((s) => s.moveClipToTrack);
   const trimStart = useTimelineStore((s) => s.trimClipStart);
   const trimEnd = useTimelineStore((s) => s.trimClipEnd);
   const saveSnapshot = useTimelineStore((s) => s.saveSnapshot);
@@ -27,6 +28,7 @@ export function Clip({ clip, pxPerSec }: Props) {
       selectClip(clip.id, e.shiftKey);
       const startX = e.clientX;
       let lastSec = 0;
+      let pendingTrackId: string | null = null;
       dragStateRef.current = { kind, lastSec: 0 };
       const target = e.currentTarget as Element;
       target.setPointerCapture?.(e.pointerId);
@@ -36,7 +38,18 @@ export function Clip({ clip, pxPerSec }: Props) {
         const sec = dx / pxPerSec;
         const delta = sec - lastSec;
         lastSec = sec;
-        if (kind === "move") moveClip(clip.id, delta);
+        if (kind === "move") {
+          moveClip(clip.id, delta);
+          // Hover-detection on every move: find the track lane under the
+          // cursor's Y position. setPointerCapture routes events to the
+          // captured target, so use elementsFromPoint (geometry-based) to
+          // discover the lane the user is hovering across.
+          const els = document.elementsFromPoint(m.clientX, m.clientY);
+          const lane = els.find((el) => el instanceof HTMLElement && el.dataset.trackId);
+          if (lane && lane instanceof HTMLElement) {
+            pendingTrackId = lane.dataset.trackId ?? null;
+          }
+        }
         if (kind === "trim-start") trimStart(clip.id, delta);
         if (kind === "trim-end") trimEnd(clip.id, delta);
       };
@@ -45,12 +58,15 @@ export function Clip({ clip, pxPerSec }: Props) {
         window.removeEventListener("pointerup", onUp);
         target.releasePointerCapture?.(e.pointerId);
         dragStateRef.current = null;
+        if (kind === "move" && pendingTrackId && pendingTrackId !== clip.trackId) {
+          moveClipToTrack(clip.id, pendingTrackId);
+        }
         void saveSnapshot();
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     },
-    [clip.id, pxPerSec, moveClip, trimStart, trimEnd, selectClip, saveSnapshot],
+    [clip.id, clip.trackId, pxPerSec, moveClip, moveClipToTrack, trimStart, trimEnd, selectClip, saveSnapshot],
   );
 
   const left = clip.startSec * pxPerSec;

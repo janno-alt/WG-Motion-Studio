@@ -149,6 +149,8 @@ export function Track({ track, clips, pxPerSec, width }: Props) {
         ) : null}
       </div>
       <div
+        data-track-id={track.id}
+        data-track-kind={track.kind}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}

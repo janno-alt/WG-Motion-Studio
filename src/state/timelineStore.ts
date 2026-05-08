@@ -39,6 +39,7 @@ interface TimelineState {
 
   addClip: (clip: Omit<Clip, "id" | "sortOrder">) => string;
   moveClip: (id: string, deltaSec: number) => void;
+  moveClipToTrack: (id: string, newTrackId: string) => void;
   trimClipStart: (id: string, deltaSec: number) => void;
   trimClipEnd: (id: string, deltaSec: number) => void;
   splitClipAt: (id: string, atSec: number) => string | null;
@@ -134,6 +135,31 @@ export const useTimelineStore = create<TimelineState>()(
               : c,
           ),
         })),
+
+      moveClipToTrack: (id, newTrackId) =>
+        set((s) => {
+          const clip = s.clips.find((c) => c.id === id);
+          if (!clip || clip.trackId === newTrackId) return {};
+          const fromTrack = s.tracks.find((t) => t.id === clip.trackId);
+          const toTrack = s.tracks.find((t) => t.id === newTrackId);
+          if (!fromTrack || !toTrack) return {};
+
+          // Captions stay on captions tracks; video/image only on video; audio
+          // only on audio. Reject incompatible moves silently — Clip.tsx
+          // already snaps back visually.
+          const compatible =
+            (fromTrack.kind === "video" && toTrack.kind === "video") ||
+            (fromTrack.kind === "audio" && toTrack.kind === "audio") ||
+            (fromTrack.kind === "captions" && toTrack.kind === "captions");
+          if (!compatible) return {};
+
+          const sortOrder = s.clips.filter((c) => c.trackId === newTrackId).length;
+          return {
+            clips: s.clips.map((c) =>
+              c.id === id ? { ...c, trackId: newTrackId, sortOrder } : c,
+            ),
+          };
+        }),
 
       trimClipStart: (id, deltaSec) =>
         set((s) => ({
